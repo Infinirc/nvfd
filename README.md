@@ -1,124 +1,228 @@
-# Infinirc GPU Fan Control (igfc tool)
+# NVFD — NVIDIA Fan Daemon
 
-Infinirc GPU Fan Control (IGFC) 是一個用於 NVIDIA GPU 的風扇控制工具。它允許用戶自定義風扇曲線，設置固定風扇速度，或使用自動模式。
+[繁體中文](README.zh-TW.md)
 
-Infinirc GPU Fan Control (IGFC) is a fan control tool for NVIDIA GPUs. It allows users to customize fan curves, set fixed fan speeds, or use automatic mode.
+NVFD is an open-source NVIDIA GPU fan control daemon for Linux. It uses the NVML API directly, so it works on **X11, Wayland, and headless** systems — no `nvidia-settings` required.
 
+## Features
 
-## 免責聲明 / Disclaimer
+- **Interactive TUI dashboard** — run `nvfd` to launch a real-time GPU monitoring and control interface
+- **Interactive curve editor** — visual ncurses fan curve editor with mouse support
+- Custom fan curves with linear interpolation
+- Fixed fan speed mode
+- True auto mode (returns control to NVIDIA driver)
+- Multi-GPU support with per-GPU configuration
+- Real-time temperature, utilization, memory, and power monitoring
+- Systemd service with automatic fan reset on shutdown
+- Config hot-reload via SIGHUP
+- Auto-elevates to root (no need to type sudo)
 
-請注意：使用 Infinirc GPU Fan Control (IGFC) 軟體時，用戶需要自行承擔風險。不當使用本軟件，特別是設置不適當的風扇轉速，可能導致您的 GPU 損壞或其他硬件問題。Infinirc 不對因使用本軟件而導致的任何 GPU 故障或其他硬件損壞負責。用戶有責任謹慎使用本軟件，並密切監控 GPU 的溫度和性能。
-
-強烈建議用戶在使用本軟件時遵循以下建議：
-1. 始終保持謹慎，不要將風扇速度設置得過低或過高。
-2. 定期監控 GPU 溫度，確保其處於安全範圍內。
-3. 如果發現任何異常，立即停止使用本軟件並恢復默認設置。
-
-使用本軟件即表示您同意承擔所有相關風險，並同意 Infinirc 不對任何可能發生的損壞負責。
-
-Please note: Use of the Infinirc GPU Fan Control (IGFC) software is at your own risk. Improper use of this software, especially setting inappropriate fan speeds, may result in damage to your GPU or other hardware issues. Infinirc is not responsible for any GPU failures or other hardware damage resulting from the use of this software. It is the user's responsibility to use this software cautiously and to closely monitor their GPU's temperature and performance.
-
-Users are strongly advised to follow these recommendations when using this software:
-1. Always exercise caution and avoid setting fan speeds too low or too high.
-2. Regularly monitor GPU temperatures to ensure they remain within safe ranges.
-3. If any abnormalities are observed, immediately stop using the software and revert to default settings.
-
-By using this software, you agree to assume all associated risks and agree that Infinirc will not be held responsible for any potential damage that may occur.
-
-
-## 功能 / Features
-
-- 自定義風扇曲線 / Custom fan curve
-- 固定風扇速度 / Fixed fan speed
-- 自動模式 / Automatic mode
-- 多 GPU 支持 / Multi-GPU support
-- 實時溫度監控 / Real-time temperature monitoring
-
-## 安裝 / Installation
+## TUI Dashboard
 
 ```
-wget https://raw.githubusercontent.com/ricky-chaoju/igfc-Infinirc-Gpu-Fan-Control/refs/heads/main/igfc_install.sh && chmod +x igfc_install.sh && sudo ./igfc_install.sh
+ NVFD v1.0 ─ GPU Fan Control                                    [q] Quit
+─────────────────────────────────────────────────────────────────────────
+ GPU 0: NVIDIA GeForce RTX 4090
+   Temp      45°C   [##############·················]
+   GPU Use   78%    [########################·······]
+   Memory    12.3 / 24.0 GB
+   Power     285 / 450 W
+
+   Fan 0     52%    [################···············]
+   Fan 1     53%    [################···············]
+
+   Mode:   Auto   Manual   Curve
+─────────────────────────────────────────────────────────────────────────
+ [m] Mode  [↑↓] Speed  [e] Edit Curve  [q] Quit       Auto-refresh 1s
 ```
 
-## 解除安裝 / Uninstallation
+## Disclaimer
 
-```
-wget https://raw.githubusercontent.com/ricky-chaoju/igfc-Infinirc-Gpu-Fan-Control/main/igfc_uninstall.sh && chmod +x igfc_uninstall.sh && sudo ./igfc_uninstall.sh
-```
+Use of NVFD is at your own risk. Improper fan speed settings may damage your GPU or other hardware. Infinirc is not responsible for any damage resulting from use of this software.
 
+Recommendations:
+1. Avoid setting fan speeds too low or too high.
+2. Monitor GPU temperatures regularly.
+3. If anything seems wrong, run `nvfd auto` to return to driver control.
 
-## 使用方法 / Usage
+## System Requirements
 
-使用 `igfc` 命令來控制您的 GPU 風扇。以下是一些常用命令：
+- NVIDIA GPU with official NVIDIA drivers (not nouveau)
+- Linux operating system
+- `libjansson-dev` — JSON library
+- `libncursesw5-dev` — ncurses wide-character support
+- NVML headers (included with CUDA toolkit or `nvidia-cuda-toolkit` package)
 
-Use the `igfc` command to control your GPU fans. Here are some common commands:
+## Installation
 
-```
+### From source (recommended)
 
-+----------------------------+-------------------------------------------+
-| 命令 / Command             | 描述 / Description                        |
-+----------------------------+-------------------------------------------+
-| igfc auto                  | 設置為自動模式                            |
-|                            | Set to automatic mode                     |
-+----------------------------+-------------------------------------------+
-| igfc curve                 | 使用自定義風扇曲線                        |
-|                            | Use custom fan curve                      |
-+----------------------------+-------------------------------------------+
-| igfc curve <temp> <speed>  | 編輯風扇曲線                              |
-|                            | Edit fan curve                            |
-+----------------------------+-------------------------------------------+
-| igfc curve show            | 顯示當前風扇曲線                          |
-|                            | Show current fan curve                    |
-+----------------------------+-------------------------------------------+
-| igfc curve reset           | 還原預設風扇曲線                          |
-|                            | Reset fan curve to default                |
-+----------------------------+-------------------------------------------+
-| igfc <speed>               | 設置所有GPU固定風扇速度（30-100）         |
-|                            | Set fixed fan speed for all GPUs (30-100) |
-+----------------------------+-------------------------------------------+
-| igfc <gpu_index> <speed>   | 設置特定GPU固定風扇速度（30-100）         |
-|                            | Set fixed fan speed for specific GPU      |
-+----------------------------+-------------------------------------------+
-| igfc list                  | 列出所有GPU及其編號                       |
-|                            | List all GPUs and their indices           |
-+----------------------------+-------------------------------------------+
-| igfc status                | 顯示當前狀態                              |
-|                            | Show current status                       |
-+----------------------------+-------------------------------------------+
-| igfc -h                    | 顯示此幫助信息                            |
-|                            | Show this help message                    |
-+----------------------------+-------------------------------------------+
-
+```bash
+git clone https://github.com/Infinirc/nvfd.git
+cd nvfd
+sudo scripts/install.sh
 ```
 
-## 系統要求 / System Requirements
+The install script will:
+- Detect your OS and install build dependencies
+- Build the binary
+- Install to `/usr/local/bin/nvfd`
+- Set up the systemd service
+- Migrate any existing config from v1.x
 
-1. NVIDIA GPU
-   - 支持NVIDIA的GPU硬件
-   - Supported NVIDIA GPU hardware
+### Manual build
 
-2. Linux 操作系統 / Linux Operating System
+```bash
+make
+sudo make install
+sudo systemctl enable --now nvfd.service
+```
 
-3. NVIDIA 驅動程序 / NVIDIA Drivers
-   - 必須使用官方NVIDIA驅動，不支持系統自帶的開源驅動
-   - 請從NVIDIA官方網站下載並安裝最新的驅動程序
-   - Official NVIDIA drivers are required; open-source drivers included with the system are not supported
-   - Please download and install the latest drivers from the official NVIDIA website
+## Uninstallation
 
-4. `nvidia-settings` 工具 / `nvidia-settings` Tool
-   - 此工具將在安裝過程中自動安裝
-   - 如果您的系統中尚未安裝，安裝腳本將會自動進行安裝
-   - This tool will be automatically installed during the installation process
-   - If it's not already installed on your system, the installation script will handle it
+```bash
+sudo scripts/uninstall.sh
+```
 
-注意：在安裝 IGFC 之前，請確保您的系統滿足上述所有要求。特別是NVIDIA驅動程序，必須使用官方驅動以確保最佳兼容性和性能。
+Or manually:
+```bash
+sudo systemctl stop nvfd.service
+sudo systemctl disable nvfd.service
+sudo make uninstall
+```
 
-Note: Please ensure your system meets all the above requirements before installing IGFC. Particularly for NVIDIA drivers, official drivers must be used to ensure optimal compatibility and performance.
+Config files in `/etc/nvfd/` are preserved. Remove manually if desired.
 
+## Usage
 
+```
+nvfd                       Interactive TUI dashboard (on TTY)
+nvfd auto                  Return fan control to NVIDIA driver
+nvfd curve                 Enable custom fan curve for all GPUs
+nvfd curve <temp> <speed>  Edit fan curve point (e.g., nvfd curve 60 70)
+nvfd curve show            Show current fan curve
+nvfd curve edit            Interactive curve editor (ncurses)
+nvfd curve reset           Reset fan curve to default
+nvfd <speed>               Set fixed fan speed for all GPUs (30-100)
+nvfd <gpu_index> <speed>   Set fixed fan speed for specific GPU
+nvfd list                  List all GPUs and their indices
+nvfd status                Show current status
+nvfd -h                    Show help
+```
 
-## 支持 / Support
+When run with no arguments on a TTY, `nvfd` launches the interactive TUI dashboard.
+When started by systemd (non-TTY), it enters daemon mode automatically.
 
-如果您在使用過程中遇到任何問題，請開啟一個 issue。
+### TUI Dashboard Keys
 
-If you encounter any problems while using this tool, please open an issue.
+| Key | Action |
+|-----|--------|
+| `Tab` / `Shift-Tab` | Switch GPU (multi-GPU) |
+| `m` | Cycle mode: Auto → Manual → Curve → Auto |
+| `↑` / `↓` | Adjust speed ±1% (manual mode) |
+| `PgUp` / `PgDn` | Adjust speed ±5% (manual mode) |
+| `e` | Open curve editor (curve mode) |
+| `q` | Quit |
+
+### Curve Editor Keys
+
+| Key | Action |
+|-----|--------|
+| `←` / `→` | Adjust temperature ±5°C |
+| `↑` / `↓` | Adjust fan speed ±5% |
+| `t` | Set temperature by typing a number |
+| `f` | Set fan speed by typing a number |
+| `a` | Add a new point |
+| `d` | Delete selected point |
+| `Tab` | Select next point |
+| `s` | Save and quit |
+| `r` | Reset to default curve |
+| `q` | Quit (prompts to save if modified) |
+
+### Modes
+
+| Mode | Description |
+|------|-------------|
+| `auto` | Returns fan control to the NVIDIA driver. Fans are fully driver-managed. |
+| `curve` | Controls fans using a custom temperature-to-speed curve. |
+| `manual` | Fans are locked to a fixed percentage (set via `nvfd <speed>`). |
+
+### Examples
+
+```bash
+# Launch interactive TUI dashboard
+nvfd
+
+# Set all fans to 80%
+nvfd 80
+
+# Set GPU 0 to 60%
+nvfd 0 60
+
+# Return all fans to driver control
+nvfd auto
+
+# Use custom fan curve
+nvfd curve
+nvfd curve show
+nvfd curve 50 60    # At 50°C, run fans at 60%
+nvfd curve edit     # Interactive curve editor
+nvfd curve reset    # Restore default curve
+
+# Check status
+nvfd status
+nvfd list
+```
+
+## Configuration
+
+Config files are stored in `/etc/nvfd/`:
+
+| File | Purpose |
+|------|---------|
+| `config.json` | Per-GPU mode settings (auto / manual / curve) |
+| `curve.json` | Fan curve points (temperature → speed %) |
+
+### Fan Curve Format
+
+```json
+{
+    "30": 30,
+    "40": 40,
+    "50": 55,
+    "60": 65,
+    "70": 85,
+    "80": 100
+}
+```
+
+## Systemd Service
+
+```bash
+sudo systemctl start nvfd      # Start the fan control daemon
+sudo systemctl stop nvfd       # Stop (fans reset to auto)
+sudo systemctl restart nvfd    # Restart
+sudo systemctl reload nvfd     # Reload config (SIGHUP)
+sudo systemctl status nvfd     # Check status
+```
+
+The daemon resets all fans to driver-controlled auto mode on shutdown.
+
+## Migration from v1.x
+
+NVFD automatically migrates old configuration:
+
+| Old | New |
+|-----|-----|
+| `/usr/local/bin/infinirc_gpu_fan_control` | `/usr/local/bin/nvfd` |
+| `/etc/infinirc_gpu_fan_control.conf` | `/etc/nvfd/config.json` |
+| `/etc/infinirc_gpu_fan_curve.json` | `/etc/nvfd/curve.json` |
+| `infinirc-gpu-fan-control.service` | `nvfd.service` |
+
+## Support
+
+If you encounter any problems, please [open an issue](https://github.com/Infinirc/nvfd/issues).
+
+## License
+
+MIT License — see [LICENSE](LICENSE) for details.

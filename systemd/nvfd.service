@@ -1,0 +1,20 @@
+[Unit]
+Description=NVFD - NVIDIA Fan Daemon
+After=multi-user.target nvidia-persistenced.service
+Wants=nvidia-persistenced.service
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/nvfd
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=on-failure
+RestartSec=5
+
+# Security hardening
+ProtectHome=yes
+ProtectSystem=strict
+ReadWritePaths=/etc/nvfd
+NoNewPrivileges=no
+
+[Install]
+WantedBy=multi-user.target
