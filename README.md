@@ -20,7 +20,7 @@ NVFD is an open-source NVIDIA GPU fan control daemon for Linux. It uses the NVML
 ## TUI Dashboard
 
 ```
- NVFD v1.0 ─ GPU Fan Control                                    [q] Quit
+ NVFD v1.1 ─ GPU Fan Control                                    [q] Quit
 ─────────────────────────────────────────────────────────────────────────
  GPU 0: NVIDIA GeForce RTX 4090
    Temp      45°C   [##############·················]
@@ -120,8 +120,9 @@ When started by systemd (non-TTY), it enters daemon mode automatically.
 | Key | Action |
 |-----|--------|
 | `Tab` / `Shift-Tab` | Switch GPU (multi-GPU) |
-| `m` | Cycle selected GPU mode: Auto → Manual → Curve → Auto |
-| `M` | Cycle ALL GPUs mode at once |
+| `a` | Toggle sync control: single GPU ↔ all GPUs |
+| `m` | Cycle mode: Auto → Manual → Curve → Auto (respects sync) |
+| `M` | Cycle ALL GPUs mode (always, regardless of sync) |
 | `↑` / `↓` | Adjust speed ±5% (manual mode) |
 | `PgUp` / `PgDn` | Adjust speed ±10% (manual mode) |
 | `e` | Open curve editor (curve mode) |
