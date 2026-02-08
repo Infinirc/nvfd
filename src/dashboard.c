@@ -51,6 +51,7 @@ typedef struct {
     int      term_rows;
     int      term_cols;
     int      dirty;
+    int      sync_all;  /* 0=single GPU control, 1=all GPUs sync */
     char     init_mode[MAX_GPU_COUNT][16];
     int      init_speed[MAX_GPU_COUNT];
 } DashboardState;
@@ -419,17 +420,22 @@ static void draw_status_bar(const DashboardState *st) {
 
     int offset = 1;
     if (st->gpu_count > 1) {
-        mvprintw(row, offset, "[Tab] GPU  ");
-        offset += 11;
-    }
-
-    mvprintw(row, offset, "[m] Mode");
-    offset += 8;
-
-    if (st->gpu_count > 1) {
-        mvprintw(row, offset, "  [M] All");
+        mvprintw(row, offset, "[Tab] GPU");
         offset += 9;
+        if (st->sync_all) {
+            attroff(COLOR_PAIR(DC_STATUS) | A_REVERSE);
+            attron(COLOR_PAIR(DC_MODE_SEL) | A_BOLD | A_REVERSE);
+            mvprintw(row, offset, " SYNC ");
+            attroff(COLOR_PAIR(DC_MODE_SEL) | A_BOLD | A_REVERSE);
+            attron(COLOR_PAIR(DC_STATUS) | A_REVERSE);
+            offset += 6;
+        }
+        mvprintw(row, offset, "  [a] %s", st->sync_all ? "Single" : "Sync");
+        offset += st->sync_all ? 11 : 9;
     }
+
+    mvprintw(row, offset, "  [m] Mode");
+    offset += 10;
 
     if (strcmp(g->mode, "manual") == 0) {
         mvprintw(row, offset, "  [\xe2\x86\x91\xe2\x86\x93] Speed \xc2\xb1""5");
@@ -639,23 +645,16 @@ static void handle_input(DashboardState *st, int ch) {
             st->selected_gpu = (st->selected_gpu + st->gpu_count - 1) % st->gpu_count;
         break;
 
-    case 'm': {
-        /* Cycle selected GPU: auto -> manual -> curve -> auto */
-        int speed = g->manual_speed;
-        if (strcmp(g->mode, "auto") == 0) {
-            if (speed < 30) speed = 50;
-            apply_mode(st->selected_gpu, "manual", speed);
-        } else if (strcmp(g->mode, "manual") == 0) {
-            apply_mode(st->selected_gpu, "curve", 0);
-        } else {
-            apply_mode(st->selected_gpu, "auto", 0);
-        }
-        st->dirty = 1;
+    case 'a':
+    case 'A':
+        if (st->gpu_count > 1)
+            st->sync_all = !st->sync_all;
         break;
-    }
 
+    case 'm':
     case 'M': {
-        /* Cycle ALL GPUs: use selected GPU's mode as reference */
+        /* M always targets all; m respects sync_all flag */
+        int target_all = (ch == 'M') || st->sync_all;
         const char *new_mode;
         if (strcmp(g->mode, "auto") == 0)
             new_mode = "manual";
@@ -663,13 +662,20 @@ static void handle_input(DashboardState *st, int ch) {
             new_mode = "curve";
         else
             new_mode = "auto";
-        for (unsigned int i = 0; i < st->gpu_count; i++) {
-            int spd = 0;
-            if (strcmp(new_mode, "manual") == 0) {
-                spd = st->gpus[i].manual_speed;
-                if (spd < 30) spd = 50;
+        if (target_all) {
+            for (unsigned int i = 0; i < st->gpu_count; i++) {
+                int spd = 0;
+                if (strcmp(new_mode, "manual") == 0) {
+                    spd = st->gpus[i].manual_speed;
+                    if (spd < 30) spd = 50;
+                }
+                apply_mode(i, new_mode, spd);
             }
-            apply_mode(i, new_mode, spd);
+        } else {
+            int spd = g->manual_speed;
+            if (strcmp(new_mode, "manual") == 0 && spd < 30) spd = 50;
+            apply_mode(st->selected_gpu, new_mode,
+                       strcmp(new_mode, "manual") == 0 ? spd : 0);
         }
         st->dirty = 1;
         break;
@@ -679,7 +685,12 @@ static void handle_input(DashboardState *st, int ch) {
         if (strcmp(g->mode, "manual") == 0) {
             int spd = g->manual_speed + 5;
             if (spd > 100) spd = 100;
-            apply_mode(st->selected_gpu, "manual", spd);
+            if (st->sync_all) {
+                for (unsigned int i = 0; i < st->gpu_count; i++)
+                    apply_mode(i, "manual", spd);
+            } else {
+                apply_mode(st->selected_gpu, "manual", spd);
+            }
             st->dirty = 1;
         }
         break;
@@ -688,7 +699,12 @@ static void handle_input(DashboardState *st, int ch) {
         if (strcmp(g->mode, "manual") == 0) {
             int spd = g->manual_speed - 5;
             if (spd < 30) spd = 30;
-            apply_mode(st->selected_gpu, "manual", spd);
+            if (st->sync_all) {
+                for (unsigned int i = 0; i < st->gpu_count; i++)
+                    apply_mode(i, "manual", spd);
+            } else {
+                apply_mode(st->selected_gpu, "manual", spd);
+            }
             st->dirty = 1;
         }
         break;
@@ -697,7 +713,12 @@ static void handle_input(DashboardState *st, int ch) {
         if (strcmp(g->mode, "manual") == 0) {
             int spd = g->manual_speed + 10;
             if (spd > 100) spd = 100;
-            apply_mode(st->selected_gpu, "manual", spd);
+            if (st->sync_all) {
+                for (unsigned int i = 0; i < st->gpu_count; i++)
+                    apply_mode(i, "manual", spd);
+            } else {
+                apply_mode(st->selected_gpu, "manual", spd);
+            }
             st->dirty = 1;
         }
         break;
@@ -706,7 +727,12 @@ static void handle_input(DashboardState *st, int ch) {
         if (strcmp(g->mode, "manual") == 0) {
             int spd = g->manual_speed - 10;
             if (spd < 30) spd = 30;
-            apply_mode(st->selected_gpu, "manual", spd);
+            if (st->sync_all) {
+                for (unsigned int i = 0; i < st->gpu_count; i++)
+                    apply_mode(i, "manual", spd);
+            } else {
+                apply_mode(st->selected_gpu, "manual", spd);
+            }
             st->dirty = 1;
         }
         break;
