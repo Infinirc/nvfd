@@ -4,7 +4,7 @@
 #include <nvml.h>
 #include <signal.h>
 
-#define NVFD_VERSION "1.0"
+#define NVFD_VERSION "1.1"
 
 #define NVFD_CONFIG_DIR   "/etc/nvfd"
 #define NVFD_CONFIG_FILE  "/etc/nvfd/config.json"

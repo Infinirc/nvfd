@@ -20,7 +20,7 @@ NVFD 是一款開源的 Linux NVIDIA GPU 風扇控制守護程式。透過 NVML 
 ## TUI 儀表板
 
 ```
- NVFD v1.0 ─ GPU Fan Control                                    [q] Quit
+ NVFD v1.1 ─ GPU Fan Control                                    [q] Quit
 ─────────────────────────────────────────────────────────────────────────
  GPU 0: NVIDIA GeForce RTX 4090
    Temp      45°C   [##############·················]
@@ -120,8 +120,9 @@ nvfd -h                    顯示說明
 | 按鍵 | 功能 |
 |------|------|
 | `Tab` / `Shift-Tab` | 切換 GPU（多 GPU 時）|
-| `m` | 循環切換選取 GPU 模式：Auto → Manual → Curve → Auto |
-| `M` | 一次切換所有 GPU 模式 |
+| `a` | 切換同步控制：單卡 ↔ 全卡 |
+| `m` | 循環切換模式：Auto → Manual → Curve → Auto（依同步設定）|
+| `M` | 一次切換所有 GPU 模式（不受同步設定影響）|
 | `↑` / `↓` | 調整轉速 ±5%（手動模式）|
 | `PgUp` / `PgDn` | 調整轉速 ±10%（手動模式）|
 | `e` | 開啟曲線編輯器（曲線模式）|
