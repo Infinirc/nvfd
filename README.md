@@ -8,10 +8,10 @@ NVFD is an open-source NVIDIA GPU fan control daemon for Linux. It uses the NVML
 
 - **Interactive TUI dashboard** — run `nvfd` to launch a real-time GPU monitoring and control interface
 - **Interactive curve editor** — visual ncurses fan curve editor with mouse support
-- Custom fan curves with linear interpolation
+- Custom fan curves with linear interpolation and real-time temperature tracking
 - Fixed fan speed mode
 - True auto mode (returns control to NVIDIA driver)
-- Multi-GPU support with per-GPU configuration
+- Multi-GPU support with per-GPU or all-GPU control, adaptive full/tabbed display
 - Real-time temperature, utilization, memory, and power monitoring
 - Systemd service with automatic fan reset on shutdown
 - Config hot-reload via SIGHUP
@@ -33,8 +33,10 @@ NVFD is an open-source NVIDIA GPU fan control daemon for Linux. It uses the NVML
 
    Mode:   Auto   Manual   Curve
 ─────────────────────────────────────────────────────────────────────────
- [m] Mode  [↑↓] Speed  [e] Edit Curve  [q] Quit       Auto-refresh 1s
+ [Tab] GPU  [m] Mode  [M] All  [↑↓] Speed ±5  [e] Edit Curve  [q] Quit
 ```
+
+> Multi-GPU: When the terminal is large enough, all GPUs are shown at once. On smaller terminals, a tab bar lets you switch between GPUs.
 
 ## Disclaimer
 
@@ -118,11 +120,12 @@ When started by systemd (non-TTY), it enters daemon mode automatically.
 | Key | Action |
 |-----|--------|
 | `Tab` / `Shift-Tab` | Switch GPU (multi-GPU) |
-| `m` | Cycle mode: Auto → Manual → Curve → Auto |
-| `↑` / `↓` | Adjust speed ±1% (manual mode) |
-| `PgUp` / `PgDn` | Adjust speed ±5% (manual mode) |
+| `m` | Cycle selected GPU mode: Auto → Manual → Curve → Auto |
+| `M` | Cycle ALL GPUs mode at once |
+| `↑` / `↓` | Adjust speed ±5% (manual mode) |
+| `PgUp` / `PgDn` | Adjust speed ±10% (manual mode) |
 | `e` | Open curve editor (curve mode) |
-| `q` | Quit |
+| `q` | Quit (prompts to save if settings were changed) |
 
 ### Curve Editor Keys
 

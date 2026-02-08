@@ -50,6 +50,9 @@ typedef struct {
     int      running;
     int      term_rows;
     int      term_cols;
+    int      dirty;
+    char     init_mode[MAX_GPU_COUNT][16];
+    int      init_speed[MAX_GPU_COUNT];
 } DashboardState;
 
 static void init_colors(void) {
@@ -82,13 +85,23 @@ static void dashboard_refresh_data(DashboardState *st) {
 
         if (gpu_get_handle(i, &device) != 0) {
             snprintf(g->name, sizeof(g->name), "GPU %u (error)", i);
+            g->temp = -1;
+            g->utilization = -1;
+            g->mem_used = 0;
+            g->mem_total = 0;
+            g->power = -1;
+            g->power_limit = 0;
+            g->fan_count = 0;
             continue;
         }
 
         gpu_get_name(device, g->name, sizeof(g->name));
         g->temp = gpu_get_temperature(device);
         g->utilization = gpu_get_utilization(device);
-        gpu_get_memory(device, &g->mem_used, &g->mem_total);
+        if (gpu_get_memory(device, &g->mem_used, &g->mem_total) != 0) {
+            g->mem_used = 0;
+            g->mem_total = 0;
+        }
         g->power = gpu_get_power(device);
         g->power_limit = gpu_get_power_limit(device);
         g->fan_count = fan_get_count(device);
@@ -163,6 +176,12 @@ static void draw_title(const DashboardState *st) {
     printw("GPU Fan Control");
     attroff(COLOR_PAIR(DC_TITLE) | A_BOLD);
 
+    if (st->dirty) {
+        attron(COLOR_PAIR(DC_CURVE) | A_BOLD);
+        printw("  [modified]");
+        attroff(COLOR_PAIR(DC_CURVE) | A_BOLD);
+    }
+
     attron(COLOR_PAIR(DC_STATUS));
     mvprintw(0, st->term_cols - 10, "[q] Quit");
     attroff(COLOR_PAIR(DC_STATUS));
@@ -170,15 +189,36 @@ static void draw_title(const DashboardState *st) {
     draw_separator(1, st->term_cols);
 }
 
-static int draw_gpu_section(const DashboardState *st, int row) {
-    const GpuData *g = &st->gpus[st->selected_gpu];
+static int gpu_section_height(const GpuData *g) {
+    int h = 8 + g->fan_count;
+    if (strcmp(g->mode, "curve") == 0)
+        h += 6; /* separator + curve info */
+    return h;
+}
+
+static int total_full_height(const DashboardState *st) {
+    int h = 3; /* title(2) + status_bar(1) */
+    for (unsigned int i = 0; i < st->gpu_count; i++) {
+        if (i > 0) h += 1; /* separator between GPUs */
+        h += gpu_section_height(&st->gpus[i]);
+    }
+    return h;
+}
+
+static int draw_gpu_section(const DashboardState *st, int row, unsigned int gpu_index) {
+    const GpuData *g = &st->gpus[gpu_index];
     int col_label = 3;
     int col_val = 13;
     int col_bar = 22;
 
-    /* GPU name */
+    /* GPU name with selection indicator */
+    if (gpu_index == st->selected_gpu && st->gpu_count > 1) {
+        attron(COLOR_PAIR(DC_CURSOR) | A_BOLD);
+        mvprintw(row, 1, "\xe2\x96\xb8"); /* ▸ */
+        attroff(COLOR_PAIR(DC_CURSOR) | A_BOLD);
+    }
     attron(COLOR_PAIR(DC_TITLE) | A_BOLD);
-    mvprintw(row, col_label - 1, "GPU %u: %s", st->selected_gpu, g->name);
+    mvprintw(row, col_label - 1, "GPU %u: %s", gpu_index, g->name);
     attroff(COLOR_PAIR(DC_TITLE) | A_BOLD);
     row++;
 
@@ -386,9 +426,14 @@ static void draw_status_bar(const DashboardState *st) {
     mvprintw(row, offset, "[m] Mode");
     offset += 8;
 
+    if (st->gpu_count > 1) {
+        mvprintw(row, offset, "  [M] All");
+        offset += 9;
+    }
+
     if (strcmp(g->mode, "manual") == 0) {
-        mvprintw(row, offset, "  [\xe2\x86\x91\xe2\x86\x93] Speed");
-        offset += 14;
+        mvprintw(row, offset, "  [\xe2\x86\x91\xe2\x86\x93] Speed \xc2\xb1""5");
+        offset += 17;
     }
 
     if (strcmp(g->mode, "curve") == 0) {
@@ -402,21 +447,66 @@ static void draw_status_bar(const DashboardState *st) {
     attroff(COLOR_PAIR(DC_STATUS) | A_REVERSE);
 }
 
+static void draw_tab_bar(const DashboardState *st, int row) {
+    int col = 1;
+    for (unsigned int i = 0; i < st->gpu_count; i++) {
+        char label[16];
+        int len = snprintf(label, sizeof(label), " GPU %u ", i);
+        if (i == st->selected_gpu) {
+            attron(COLOR_PAIR(DC_MODE_SEL) | A_BOLD | A_REVERSE);
+            mvprintw(row, col, "%s", label);
+            attroff(COLOR_PAIR(DC_MODE_SEL) | A_BOLD | A_REVERSE);
+        } else {
+            attron(COLOR_PAIR(DC_MODE_DIM));
+            mvprintw(row, col, "%s", label);
+            attroff(COLOR_PAIR(DC_MODE_DIM));
+        }
+        col += len;
+    }
+}
+
+static void draw_gpu_with_curve(const DashboardState *st, int *row, unsigned int gpu_index) {
+    *row = draw_gpu_section(st, *row, gpu_index);
+    if (strcmp(st->gpus[gpu_index].mode, "curve") == 0) {
+        (*row)++;
+        draw_separator(*row, st->term_cols);
+        (*row)++;
+        draw_curve_info(*row, st->gpus[gpu_index].temp);
+        *row += 4;
+    }
+}
+
 static void draw_screen(const DashboardState *st) {
     erase();
+
+    if (st->term_rows < 12 || st->term_cols < 55) {
+        mvprintw(0, 0, "Terminal too small (%dx%d)",
+                 st->term_cols, st->term_rows);
+        mvprintw(1, 0, "Need at least 55x12");
+        refresh();
+        return;
+    }
+
     draw_title(st);
 
     int row = 2;
-    row = draw_gpu_section(st, row);
 
-    const GpuData *g = &st->gpus[st->selected_gpu];
-
-    /* Only show curve info in curve mode */
-    if (strcmp(g->mode, "curve") == 0) {
-        row++;
-        draw_separator(row, st->term_cols);
-        row++;
-        draw_curve_info(row, g->temp);
+    if (st->gpu_count > 1 && total_full_height(st) <= st->term_rows) {
+        /* Full mode: show all GPUs stacked */
+        for (unsigned int i = 0; i < st->gpu_count; i++) {
+            if (i > 0) {
+                draw_separator(row, st->term_cols);
+                row++;
+            }
+            draw_gpu_with_curve(st, &row, i);
+        }
+    } else {
+        /* Single GPU or tabbed mode */
+        if (st->gpu_count > 1) {
+            draw_tab_bar(st, row);
+            row++;
+        }
+        draw_gpu_with_curve(st, &row, st->selected_gpu);
     }
 
     draw_status_bar(st);
@@ -453,13 +543,90 @@ static void apply_mode(unsigned int gpu_index, const char *mode, int speed) {
     }
 }
 
+static void apply_curve_fans(const DashboardState *st) {
+    /* Check if any GPU is in curve mode first */
+    int any_curve = 0;
+    for (unsigned int i = 0; i < st->gpu_count; i++) {
+        if (strcmp(st->gpus[i].mode, "curve") == 0) {
+            any_curve = 1;
+            break;
+        }
+    }
+    if (!any_curve)
+        return;
+
+    /* Read curve once, apply to all curve-mode GPUs */
+    FanCurve *curve = curve_read();
+
+    for (unsigned int i = 0; i < st->gpu_count; i++) {
+        if (strcmp(st->gpus[i].mode, "curve") != 0)
+            continue;
+
+        nvmlDevice_t device;
+        if (gpu_get_handle(i, &device) != 0)
+            continue;
+
+        int temp = gpu_get_temperature(device);
+        if (temp < 0)
+            continue;
+
+        int fan_speed;
+        if (curve)
+            fan_speed = curve_interpolate(temp, curve);
+        else
+            fan_speed = curve_default_interpolate(temp);
+        fan_set_gpu_speed(i, (unsigned int)fan_speed);
+    }
+
+    free(curve);
+}
+
+/* Returns: 1=save, 0=discard, -1=cancel */
+static int prompt_save_dashboard(int rows) {
+    int row = rows - 3;
+
+    move(row, 0);
+    clrtoeol();
+
+    attron(COLOR_PAIR(DC_TITLE) | A_BOLD | A_REVERSE);
+    mvprintw(row, 2, " Save settings? [y]Save  [n]Discard  [c]Cancel ");
+    attroff(COLOR_PAIR(DC_TITLE) | A_BOLD | A_REVERSE);
+    attron(COLOR_PAIR(DC_MODE_DIM));
+    mvprintw(row + 1, 3, "Save keeps fan settings; use systemd daemon for persistent control");
+    attroff(COLOR_PAIR(DC_MODE_DIM));
+    refresh();
+
+    timeout(-1);
+    int ch;
+    for (;;) {
+        ch = getch();
+        if (ch == 'y' || ch == 'Y') { timeout(1000); return 1; }
+        if (ch == 'n' || ch == 'N') { timeout(1000); return 0; }
+        if (ch == 'c' || ch == 'C' || ch == 27) { timeout(1000); return -1; }
+    }
+}
+
 static void handle_input(DashboardState *st, int ch) {
     GpuData *g = &st->gpus[st->selected_gpu];
 
     switch (ch) {
     case 'q':
     case 'Q':
-        st->running = 0;
+        if (st->dirty) {
+            int choice = prompt_save_dashboard(st->term_rows);
+            if (choice == 1) {
+                /* Save: config already written via apply_mode, just exit */
+                st->running = 0;
+            } else if (choice == 0) {
+                /* Discard: restore initial config and fan state */
+                for (unsigned int i = 0; i < st->gpu_count; i++)
+                    apply_mode(i, st->init_mode[i], st->init_speed[i]);
+                st->running = 0;
+            }
+            /* choice == -1: cancel, stay in dashboard */
+        } else {
+            st->running = 0;
+        }
         break;
 
     case '\t':
@@ -472,9 +639,8 @@ static void handle_input(DashboardState *st, int ch) {
             st->selected_gpu = (st->selected_gpu + st->gpu_count - 1) % st->gpu_count;
         break;
 
-    case 'm':
-    case 'M': {
-        /* Cycle: auto -> manual -> curve -> auto */
+    case 'm': {
+        /* Cycle selected GPU: auto -> manual -> curve -> auto */
         int speed = g->manual_speed;
         if (strcmp(g->mode, "auto") == 0) {
             if (speed < 30) speed = 50;
@@ -484,38 +650,64 @@ static void handle_input(DashboardState *st, int ch) {
         } else {
             apply_mode(st->selected_gpu, "auto", 0);
         }
+        st->dirty = 1;
+        break;
+    }
+
+    case 'M': {
+        /* Cycle ALL GPUs: use selected GPU's mode as reference */
+        const char *new_mode;
+        if (strcmp(g->mode, "auto") == 0)
+            new_mode = "manual";
+        else if (strcmp(g->mode, "manual") == 0)
+            new_mode = "curve";
+        else
+            new_mode = "auto";
+        for (unsigned int i = 0; i < st->gpu_count; i++) {
+            int spd = 0;
+            if (strcmp(new_mode, "manual") == 0) {
+                spd = st->gpus[i].manual_speed;
+                if (spd < 30) spd = 50;
+            }
+            apply_mode(i, new_mode, spd);
+        }
+        st->dirty = 1;
         break;
     }
 
     case KEY_UP:
         if (strcmp(g->mode, "manual") == 0) {
-            int spd = g->manual_speed + 1;
+            int spd = g->manual_speed + 5;
             if (spd > 100) spd = 100;
             apply_mode(st->selected_gpu, "manual", spd);
+            st->dirty = 1;
         }
         break;
 
     case KEY_DOWN:
         if (strcmp(g->mode, "manual") == 0) {
-            int spd = g->manual_speed - 1;
+            int spd = g->manual_speed - 5;
             if (spd < 30) spd = 30;
             apply_mode(st->selected_gpu, "manual", spd);
+            st->dirty = 1;
         }
         break;
 
     case KEY_PPAGE:
         if (strcmp(g->mode, "manual") == 0) {
-            int spd = g->manual_speed + 5;
+            int spd = g->manual_speed + 10;
             if (spd > 100) spd = 100;
             apply_mode(st->selected_gpu, "manual", spd);
+            st->dirty = 1;
         }
         break;
 
     case KEY_NPAGE:
         if (strcmp(g->mode, "manual") == 0) {
-            int spd = g->manual_speed - 5;
+            int spd = g->manual_speed - 10;
             if (spd < 30) spd = 30;
             apply_mode(st->selected_gpu, "manual", spd);
+            st->dirty = 1;
         }
         break;
 
@@ -541,6 +733,7 @@ int dashboard_run(void) {
     memset(&st, 0, sizeof(st));
     st.running = 1;
     st.selected_gpu = 0;
+    st.dirty = 0;
 
     /* Must set locale before initscr() for UTF-8 support */
     setlocale(LC_ALL, "");
@@ -555,8 +748,17 @@ int dashboard_run(void) {
 
     init_colors();
 
+    /* Capture initial state for save/discard on quit */
+    dashboard_refresh_data(&st);
+    for (unsigned int i = 0; i < st.gpu_count; i++) {
+        strncpy(st.init_mode[i], st.gpus[i].mode, sizeof(st.init_mode[i]) - 1);
+        st.init_mode[i][sizeof(st.init_mode[i]) - 1] = '\0';
+        st.init_speed[i] = st.gpus[i].manual_speed;
+    }
+
     while (st.running && keep_running) {
         dashboard_refresh_data(&st);
+        apply_curve_fans(&st);
         draw_screen(&st);
         int ch = getch();
         if (ch != ERR)
@@ -564,8 +766,5 @@ int dashboard_run(void) {
     }
 
     endwin();
-
-    /* Reset fans to auto on clean exit */
-    fan_reset_all_to_auto();
     return 0;
 }

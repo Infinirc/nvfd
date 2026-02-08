@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <locale.h>
 #include <ncurses.h>
 
 #include "editor.h"
@@ -528,6 +529,7 @@ int editor_run(void) {
     int standalone = (stdscr == NULL || isendwin());
 
     if (standalone) {
+        setlocale(LC_ALL, "");
         initscr();
         cbreak();
         noecho();
