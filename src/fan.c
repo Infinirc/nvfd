@@ -79,11 +79,13 @@ int fan_reset_to_auto(unsigned int gpu_index) {
         }
     }
 
-    /* Restore automatic fan policy */
+    /* Restore automatic fan policy if API is available */
+#ifdef NVML_FAN_POLICY_TEMPERATURE_CONTINOUS_SW
     for (int i = 0; i < num_fans; i++) {
         nvmlDeviceSetFanControlPolicy(device, (unsigned int)i,
                                       NVML_FAN_POLICY_TEMPERATURE_CONTINOUS_SW);
     }
+#endif
 
     return failures;
 }
