@@ -3,6 +3,8 @@
 [繁體中文](README.zh-TW.md)
 
 NVFD is an open-source NVIDIA GPU fan control daemon for Linux. It uses the NVML API directly, so it works on **X11, Wayland, and headless** systems — no `nvidia-settings` required.
+<img width="550" height="464" alt="截圖 2026-02-09 晚上8 32 24" src="https://github.com/user-attachments/assets/28427607-cf07-4e4f-89e4-eaa8d4f34189" />
+<img width="657" height="444" alt="截圖 2026-02-09 晚上8 32 36" src="https://github.com/user-attachments/assets/90aaebd8-91a1-4465-a30a-facaa98aeeba" />
 
 ## Features
 
