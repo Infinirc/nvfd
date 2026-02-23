@@ -28,6 +28,7 @@ static void signal_handler(int signum) {
 
 static void daemon_loop(void) {
     FanCurve *curve = NULL;
+    int prev_managed[MAX_GPU_COUNT] = {0};
 
     printf("Entering daemon mode (polling every 5s)...\n");
     openlog("nvfd", LOG_PID, LOG_DAEMON);
@@ -54,9 +55,15 @@ static void daemon_loop(void) {
             if (json_is_object(cfg))
                 mode = json_string_value(json_object_get(cfg, "mode"));
 
-            /* No config or auto mode: let driver control fans, skip */
-            if (!mode || strcmp(mode, "auto") == 0)
+            /* No config or auto mode: let driver control fans */
+            if (!mode || strcmp(mode, "auto") == 0) {
+                if (prev_managed[i]) {
+                    syslog(LOG_INFO, "GPU %u: restoring driver fan control", i);
+                    fan_reset_to_auto(i);
+                    prev_managed[i] = 0;
+                }
                 continue;
+            }
 
             int temp = gpu_get_temperature(device);
             if (temp < 0)
@@ -78,6 +85,7 @@ static void daemon_loop(void) {
             }
 
             fan_set_gpu_speed(i, (unsigned int)fan_speed);
+            prev_managed[i] = 1;
         }
 
         json_decref(root);
