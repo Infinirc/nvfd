@@ -4,6 +4,9 @@
 
 NVFD 是一款開源的 Linux NVIDIA GPU 風扇控制守護程式。透過 NVML API 直接控制風扇，支援 **X11、Wayland 及無頭伺服器**，不需要 `nvidia-settings`。
 
+<img width="550" height="464" alt="截圖 2026-02-09 晚上8 32 24" src="https://github.com/user-attachments/assets/28427607-cf07-4e4f-89e4-eaa8d4f34189" />
+<img width="657" height="444" alt="截圖 2026-02-09 晚上8 32 36" src="https://github.com/user-attachments/assets/90aaebd8-91a1-4465-a30a-facaa98aeeba" />
+
 ## 功能特色
 
 - **互動式 TUI 儀表板** — 執行 `nvfd` 即可啟動即時 GPU 監控與控制介面
