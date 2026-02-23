@@ -54,8 +54,8 @@ static void daemon_loop(void) {
             if (json_is_object(cfg))
                 mode = json_string_value(json_object_get(cfg, "mode"));
 
-            /* Auto mode: driver controls fans, skip */
-            if (mode && strcmp(mode, "auto") == 0)
+            /* No config or auto mode: let driver control fans, skip */
+            if (!mode || strcmp(mode, "auto") == 0)
                 continue;
 
             int temp = gpu_get_temperature(device);
@@ -73,7 +73,7 @@ static void daemon_loop(void) {
                 else
                     fan_speed = curve_default_interpolate(temp);
             } else {
-                /* No config for this GPU - use default curve */
+                /* Unknown mode - fall back to default curve */
                 fan_speed = curve_default_interpolate(temp);
             }
 
