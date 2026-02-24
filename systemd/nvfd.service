@@ -14,7 +14,19 @@ RestartSec=5
 ProtectHome=yes
 ProtectSystem=strict
 ReadWritePaths=/etc/nvfd
-NoNewPrivileges=no
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+MemoryDenyWriteExecute=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+ProtectClock=yes
+RestrictNamespaces=yes
+RestrictAddressFamilies=AF_UNIX
+ProtectHostname=yes
 
 [Install]
 WantedBy=multi-user.target
