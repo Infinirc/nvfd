@@ -15,6 +15,7 @@ NVFD is an open-source NVIDIA GPU fan control daemon for Linux. It uses the NVML
 - Fixed fan speed mode
 - True auto mode (returns control to NVIDIA driver)
 - Multi-GPU support with per-GPU or all-GPU control, adaptive full/tabbed display
+- Per-GPU mode switching via CLI (`nvfd 0 auto`, `nvfd 1 curve`, etc.)
 - Real-time temperature, utilization, memory, and power monitoring
 - Systemd service with automatic fan reset on shutdown
 - Config hot-reload via SIGHUP
@@ -110,6 +111,9 @@ nvfd curve edit            Interactive curve editor (ncurses)
 nvfd curve reset           Reset fan curve to default
 nvfd <speed>               Set fixed fan speed for all GPUs (30-100)
 nvfd <gpu_index> <speed>   Set fixed fan speed for specific GPU
+nvfd <gpu_index> auto      Set specific GPU to auto mode
+nvfd <gpu_index> curve     Set specific GPU to curve mode
+nvfd <gpu_index> manual <speed>  Set specific GPU to fixed speed
 nvfd list                  List all GPUs and their indices
 nvfd status                Show current status
 nvfd -h                    Show help
@@ -168,6 +172,11 @@ nvfd 0 60
 
 # Return all fans to driver control
 nvfd auto
+
+# Per-GPU mode control
+nvfd 0 auto          # Set GPU 0 to auto mode
+nvfd 1 curve         # Set GPU 1 to curve mode
+nvfd 0 manual 70     # Set GPU 0 to manual mode at 70%
 
 # Use custom fan curve
 nvfd curve
