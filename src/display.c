@@ -34,7 +34,7 @@ void display_help(void) {
     printf("+-----------------------------+-----------------------------------------+\n");
     printf("| nvfd <gpu_index> curve      | Set specific GPU to curve mode          |\n");
     printf("+-----------------------------+-----------------------------------------+\n");
-    printf("| nvfd <gpu_index> manual <sp>  Set specific GPU to fixed speed     |\n");
+    printf("| nvfd <gpu_index> manual <sp>  Set specific GPU to fixed speed         |\n");
     printf("+-----------------------------+-----------------------------------------+\n");
     printf("| nvfd list                   | List all GPUs and their indices         |\n");
     printf("+-----------------------------+-----------------------------------------+\n");
