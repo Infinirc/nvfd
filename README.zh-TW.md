@@ -15,6 +15,7 @@ NVFD 是一款開源的 Linux NVIDIA GPU 風扇控制守護程式。透過 NVML 
 - 固定轉速模式
 - 自動模式（將控制權交還 NVIDIA 驅動程式）
 - 多 GPU 支援，單卡或全卡控制，自適應全顯/分頁顯示
+- 透過 CLI 實現每張 GPU 的模式切換 (`nvfd 0 auto`, `nvfd 1 curve` 等)
 - 即時溫度、使用率、記憶體、功耗監控
 - Systemd 服務，關機時自動重設風扇
 - 透過 SIGHUP 熱載入設定
@@ -75,6 +76,13 @@ sudo scripts/install.sh
 - 設定 systemd 服務
 - 自動遷移 v1.x 舊設定
 
+**可選：** 安裝實用工具腳本：
+```bash
+sudo scripts/install.sh --with-utils
+```
+
+詳見 [進階用法](#進階用法) 了解實用工具腳本的詳細資訊。
+
 ### 手動編譯
 
 ```bash
@@ -101,18 +109,21 @@ sudo make uninstall
 ## 使用方式
 
 ```
-nvfd                       互動式 TUI 儀表板（需在終端機執行）
-nvfd auto                  將風扇控制權交還 NVIDIA 驅動程式
-nvfd curve                 啟用自訂風扇曲線
-nvfd curve <溫度> <轉速>   編輯風扇曲線控制點（例：nvfd curve 60 70）
-nvfd curve show            顯示目前風扇曲線
-nvfd curve edit            互動式曲線編輯器（ncurses）
-nvfd curve reset           重設風扇曲線為預設值
-nvfd <轉速>                設定所有 GPU 固定轉速（30-100）
-nvfd <GPU編號> <轉速>      設定指定 GPU 固定轉速
-nvfd list                  列出所有 GPU
-nvfd status                顯示目前狀態
-nvfd -h                    顯示說明
+nvfd                           互動式 TUI 儀表板（需在終端機執行）
+nvfd auto                      將風扇控制權交還 NVIDIA 驅動程式
+nvfd curve                     啟用自訂風扇曲線
+nvfd curve <溫度> <轉速>        編輯風扇曲線控制點（例：nvfd curve 60 70）
+nvfd curve show                顯示目前風扇曲線
+nvfd curve edit                互動式曲線編輯器（ncurses）
+nvfd curve reset               重設風扇曲線為預設值
+nvfd <轉速>                    設定所有 GPU 固定轉速（30-100）
+nvfd <GPU 編號> <轉速>          設定指定 GPU 固定轉速
+nvfd <GPU 編號> auto            設定指定 GPU 為自動模式
+nvfd <GPU 編號> curve           設定指定 GPU 為曲線模式
+nvfd <GPU 編號> manual <轉速>    設定指定 GPU 為固定轉速
+nvfd list                      列出所有 GPU
+nvfd status                    顯示目前狀態
+nvfd -h                        顯示說明
 ```
 
 在終端機中不帶參數執行 `nvfd` 會啟動互動式 TUI 儀表板。
@@ -169,6 +180,11 @@ nvfd 0 60
 # 所有風扇交還驅動程式控制
 nvfd auto
 
+# 每張 GPU 的模式控制
+nvfd 0 auto          # 設定 GPU 0 為自動模式
+nvfd 1 curve         # 設定 GPU 1 為曲線模式
+nvfd 0 manual 70     # 設定 GPU 0 為手動模式 70%
+
 # 使用自訂風扇曲線
 nvfd curve
 nvfd curve show
@@ -214,6 +230,50 @@ sudo systemctl status nvfd     # 查看狀態
 ```
 
 守護程式關閉時會自動將所有風扇重設為驅動程式控制的自動模式。
+
+## 進階用法
+
+### 溫度感知風扇控制
+
+`nvfd-fan-control.sh` 實用工具可根據溫度閾值（帶遲滯）自動切換每張 GPU 的風扇模式：
+
+```bash
+# 使用預設閾值（up: 45°C, down: 35°C）運行
+sudo nvfd-fan-control.sh
+
+# 自訂閾值（帶遲滯）
+sudo nvfd-fan-control.sh --threshold-up 50 --threshold-down 40
+
+# 啟用詳細日誌
+sudo nvfd-fan-control.sh -v
+```
+
+**遲滯說明：**
+- `--threshold-up 45`：溫度**上升至 45°C 以上**時切換到**曲線模式**
+- `--threshold-down 35`：溫度**下降至 35°C 以下**時切換到**自動模式**
+- 在 35-45°C 之間：**保持當前模式**（防止頻繁切換）
+
+該腳本會監控 GPU 溫度，並自動在以下模式之間切換每張 GPU：
+- **自動模式**（安靜）：溫度低於 threshold-down 時
+- **曲線模式**（散熱）：溫度高於 threshold-up 時
+
+#### Systemd 服務
+
+使用 `--with-utils` 安裝後，服務單元已安裝但**預設未啟用**。啟用方法：
+
+```bash
+sudo systemctl enable --now nvfd-fan-control.service
+```
+
+該服務依賴於 `nvfd.service`，並會在 5 秒內自動偵測到配置變更。
+
+### 依賴項
+
+實用工具腳本需要：
+- `nvidia-smi`（包含在 NVIDIA 驅動中）
+- `nvfd` 二进制文件（通過此套件安裝）
+
+運行時不需要 CUDA toolkit。
 
 ## 從 v1.x 遷移
 

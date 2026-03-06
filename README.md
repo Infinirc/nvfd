@@ -76,6 +76,13 @@ The install script will:
 - Set up the systemd service
 - Migrate any existing config from v1.x
 
+**Optional:** Install with utility scripts:
+```bash
+sudo scripts/install.sh --with-utils
+```
+
+See [Advanced Usage](#advanced-usage) for details on utility scripts.
+
 ### Manual build
 
 ```bash
@@ -102,21 +109,21 @@ Config files in `/etc/nvfd/` are preserved. Remove manually if desired.
 ## Usage
 
 ```
-nvfd                       Interactive TUI dashboard (on TTY)
-nvfd auto                  Return fan control to NVIDIA driver
-nvfd curve                 Enable custom fan curve for all GPUs
-nvfd curve <temp> <speed>  Edit fan curve point (e.g., nvfd curve 60 70)
-nvfd curve show            Show current fan curve
-nvfd curve edit            Interactive curve editor (ncurses)
-nvfd curve reset           Reset fan curve to default
-nvfd <speed>               Set fixed fan speed for all GPUs (30-100)
-nvfd <gpu_index> <speed>   Set fixed fan speed for specific GPU
-nvfd <gpu_index> auto      Set specific GPU to auto mode
-nvfd <gpu_index> curve     Set specific GPU to curve mode
-nvfd <gpu_index> manual <speed>  Set specific GPU to fixed speed
-nvfd list                  List all GPUs and their indices
-nvfd status                Show current status
-nvfd -h                    Show help
+nvfd                           Interactive TUI dashboard (on TTY)
+nvfd auto                      Return fan control to NVIDIA driver
+nvfd curve                     Enable custom fan curve for all GPUs
+nvfd curve <temp> <speed>      Edit fan curve point (e.g., nvfd curve 60 70)
+nvfd curve show                Show current fan curve
+nvfd curve edit                Interactive curve editor (ncurses)
+nvfd curve reset               Reset fan curve to default
+nvfd <speed>                   Set fixed fan speed for all GPUs (30-100)
+nvfd <gpu_index> <speed>       Set fixed fan speed for specific GPU
+nvfd <gpu_index> auto          Set specific GPU to auto mode
+nvfd <gpu_index> curve         Set specific GPU to curve mode
+nvfd <gpu_index> manual <sp>   Set specific GPU to fixed speed
+nvfd list                      List all GPUs and their indices
+nvfd status                    Show current status
+nvfd -h                        Show help
 ```
 
 When run with no arguments on a TTY, `nvfd` launches the interactive TUI dashboard.
@@ -223,6 +230,50 @@ sudo systemctl status nvfd     # Check status
 ```
 
 The daemon resets all fans to driver-controlled auto mode on shutdown.
+
+## Advanced Usage
+
+### Temperature-Aware Fan Control
+
+The `nvfd-fan-control.sh` utility provides automatic per-GPU fan mode switching based on temperature thresholds with hysteresis:
+
+```bash
+# Run with default thresholds (up: 45°C, down: 35°C)
+sudo nvfd-fan-control.sh
+
+# Custom thresholds with hysteresis
+sudo nvfd-fan-control.sh --threshold-up 50 --threshold-down 40
+
+# Verbose logging
+sudo nvfd-fan-control.sh -v
+```
+
+**Hysteresis explained:**
+- `--threshold-up 45`: Switch to **curve mode** when temperature **rises above 45°C**
+- `--threshold-down 35`: Switch to **auto mode** when temperature **falls below 35°C**
+- Between 35-45°C: **Keep current mode** (prevents thrashing)
+
+The script monitors GPU temperatures and automatically switches each GPU between:
+- **Auto mode** (quiet) when temperature falls below threshold-down
+- **Curve mode** (cooled) when temperature rises above threshold-up
+
+#### Systemd Service
+
+When installed with `--with-utils`, the service unit is installed but **not enabled by default**. To enable:
+
+```bash
+sudo systemctl enable --now nvfd-fan-control.service
+```
+
+The service depends on `nvfd.service` and automatically detects config changes within 5 seconds.
+
+### Dependencies
+
+The utility script requires:
+- `nvidia-smi` (included with NVIDIA drivers)
+- `nvfd` binary (installed via this package)
+
+No CUDA toolkit required for runtime.
 
 ## Migration from v1.x
 
