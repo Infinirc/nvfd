@@ -3,6 +3,8 @@
 #include <string.h>
 #include <jansson.h>
 #include "curve.h"
+#include "fan.h"
+#include "gpu.h"
 
 static int compare_points(const void *a, const void *b) {
     return ((const FanCurvePoint *)a)->temperature -
@@ -156,6 +158,25 @@ int curve_interpolate(int temp, const FanCurve *curve) {
     }
 
     return curve->points[curve->point_count - 1].fan_speed;
+}
+
+int curve_apply_to_gpu(unsigned int gpu_index) {
+    nvmlDevice_t device;
+    if (gpu_get_handle(gpu_index, &device) != 0)
+        return -1;
+
+    int temp = gpu_get_temperature(device);
+    if (temp < 0)
+        return -1;
+
+    FanCurve *curve = curve_read();
+    int fan_speed = curve ?
+                    curve_interpolate(temp, curve) :
+                    curve_default_interpolate(temp);
+
+    if (curve) free(curve);
+
+    return fan_set_gpu_speed(gpu_index, (unsigned int)fan_speed);
 }
 
 int curve_default_interpolate(int temp) {
