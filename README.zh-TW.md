@@ -91,6 +91,11 @@ sudo make install
 sudo systemctl enable --now nvfd.service
 ```
 
+**可選：安裝實用工具**
+```bash
+sudo make install-utils
+```
+
 ## 解除安裝
 
 ```bash
@@ -266,6 +271,12 @@ sudo systemctl enable --now nvfd-fan-control.service
 ```
 
 該服務依賴於 `nvfd.service`，並會在 5 秒內自動偵測到配置變更。
+
+**自訂閾值：** 編輯 `/etc/systemd/system/nvfd-fan-control.service` 並修改 `ExecStart` 行：
+```ini
+ExecStart=/usr/local/bin/nvfd-fan-control.sh --threshold-up 50 --threshold-down 40
+```
+然後重新載入並重啟：`sudo systemctl daemon-reload && sudo systemctl restart nvfd-fan-control.service`
 
 ### 依賴項
 

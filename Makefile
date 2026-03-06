@@ -21,7 +21,7 @@ SRCS     = $(wildcard $(SRCDIR)/*.c)
 OBJS     = $(patsubst $(SRCDIR)/%.c,$(BUILDDIR)/%.o,$(SRCS))
 TARGET   = $(BUILDDIR)/nvfd
 
-.PHONY: all clean install uninstall
+.PHONY: all clean install uninstall install-utils uninstall-utils
 
 all: $(TARGET)
 
@@ -47,7 +47,15 @@ install: $(TARGET)
 	install -d $(DESTDIR)$(UNITDIR)
 	install -m 644 systemd/nvfd.service $(DESTDIR)$(UNITDIR)/nvfd.service
 
-uninstall:
+install-utils:
+	install -m 755 utils/nvfd-fan-control.sh $(DESTDIR)$(BINDIR)/
+	install -m 644 utils/nvfd-fan-control.service $(DESTDIR)$(UNITDIR)/
+
+uninstall: uninstall-utils
 	rm -f $(DESTDIR)$(BINDIR)/nvfd
 	rm -f $(DESTDIR)$(UNITDIR)/nvfd.service
 	@echo "Config files preserved in $(CONFDIR). Remove manually if desired."
+
+uninstall-utils:
+	rm -f $(DESTDIR)$(BINDIR)/nvfd-fan-control.sh
+	rm -f $(DESTDIR)$(UNITDIR)/nvfd-fan-control.service

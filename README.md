@@ -91,6 +91,11 @@ sudo make install
 sudo systemctl enable --now nvfd.service
 ```
 
+**Optional: Install utilities**
+```bash
+sudo make install-utils
+```
+
 ## Uninstallation
 
 ```bash
@@ -266,6 +271,12 @@ sudo systemctl enable --now nvfd-fan-control.service
 ```
 
 The service depends on `nvfd.service` and automatically detects config changes within 5 seconds.
+
+**Customizing thresholds:** Edit `/etc/systemd/system/nvfd-fan-control.service` and modify the `ExecStart` line:
+```ini
+ExecStart=/usr/local/bin/nvfd-fan-control.sh --threshold-up 50 --threshold-down 40
+```
+Then reload and restart: `sudo systemctl daemon-reload && sudo systemctl restart nvfd-fan-control.service`
 
 ### Dependencies
 

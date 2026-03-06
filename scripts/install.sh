@@ -121,13 +121,8 @@ systemctl start nvfd.service
 
 # Install optional utilities
 if [ "$WITH_UTILS" = true ]; then
-    echo
     echo "Installing utility scripts..."
-    install -m 755 "$SCRIPT_DIR/utils/nvfd-fan-control.sh" /usr/local/bin/
-    install -m 644 "$SCRIPT_DIR/utils/nvfd-fan-control.service" /etc/systemd/system/
-    echo "Utility scripts installed."
-    echo "  - nvfd-fan-control.sh: Temperature-aware fan mode switching"
-    echo "  - nvfd-fan-control.service: Systemd unit (enable with: systemctl enable nvfd-fan-control.service)"
+    make install-utils
 fi
 
 cat << EOF
