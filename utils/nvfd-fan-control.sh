@@ -71,14 +71,18 @@ fi
 
 # Initialize
 declare -a GPU_MODES=()
+declare -a GPU_NAMES=()
 NUM_GPUS=$(nvidia-smi --list-gpus 2>/dev/null | wc -l)
 
 [[ "$NUM_GPUS" -eq 0 ]] && { echo "ERROR: No NVIDIA GPUs detected!" >&2; exit 1; }
 
-echo "[INFO] Detected $NUM_GPUS GPU(s)"
+# Get GPU names
 for i in $(seq 0 $((NUM_GPUS - 1))); do
   GPU_MODES+=("")
+  GPU_NAMES[$i]=$(nvidia-smi --query-gpu=name --format=csv,noheader,nounits --id=$i)
 done
+
+echo "[INFO] Detected $NUM_GPUS GPU(s)"
 
 # Graceful shutdown
 cleanup() {
@@ -97,27 +101,28 @@ echo "[INFO] Fan control started (threshold-up: ${THRESHOLD_UP}°C, threshold-do
 while true; do
   for i in $(seq 0 $((NUM_GPUS - 1))); do
     current_mode="${GPU_MODES[$i]:-unknown}"
+    gpu_name="${GPU_NAMES[$i]}"
     
     temp=$(nvidia-smi --query-gpu=temperature.gpu --format=csv,noheader,nounits --id=$i)
     
-    [[ "$VERBOSE" == "true" ]] && echo "[INFO] GPU $i: ${temp}°C | Mode: $current_mode"
+    [[ "$VERBOSE" == "true" ]] && echo "[INFO] GPU $i ($gpu_name): ${temp}°C | Mode: $current_mode"
     
     if [[ "$temp" -ge "$THRESHOLD_UP" ]]; then
       if [[ "$current_mode" != "curve" ]]; then
         if "$NVFD" "$i" curve >/dev/null 2>&1; then
           GPU_MODES[$i]="curve"
-          [[ "$VERBOSE" == "true" ]] && echo "[INFO] GPU $i → curve mode (temp: ${temp}°C, threshold-up: ${THRESHOLD_UP}°C)"
+          [[ "$VERBOSE" == "true" ]] && echo "[INFO] GPU $i ($gpu_name) → curve mode (temp: ${temp}°C, threshold-up: ${THRESHOLD_UP}°C)"
         else
-          echo "[ERROR] Failed to set GPU $i to curve mode" >&2
+          echo "[ERROR] Failed to set GPU $i ($gpu_name) to curve mode" >&2
         fi
       fi
     elif [[ "$temp" -le "$THRESHOLD_DOWN" ]]; then
       if [[ "$current_mode" != "auto" ]]; then
         if "$NVFD" "$i" auto >/dev/null 2>&1; then
           GPU_MODES[$i]="auto"
-          [[ "$VERBOSE" == "true" ]] && echo "[INFO] GPU $i → auto mode (temp: ${temp}°C, threshold-down: ${THRESHOLD_DOWN}°C)"
+          [[ "$VERBOSE" == "true" ]] && echo "[INFO] GPU $i ($gpu_name) → auto mode (temp: ${temp}°C, threshold-down: ${THRESHOLD_DOWN}°C)"
         else
-          echo "[ERROR] Failed to set GPU $i to auto mode" >&2
+          echo "[ERROR] Failed to set GPU $i ($gpu_name) to auto mode" >&2
         fi
       fi
     fi

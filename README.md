@@ -262,6 +262,22 @@ The script monitors GPU temperatures and automatically switches each GPU between
 - **Auto mode** (quiet) when temperature falls below threshold-down
 - **Curve mode** (cooled) when temperature rises above threshold-up
 
+### Monitoring Mode Switches
+
+You can monitor mode switches in real-time using the **nvfd dashboard**:
+
+```bash
+nvfd
+```
+
+The dashboard shows the current mode (Auto/Manual/Curve) for each GPU. When `nvfd-fan-control.sh` switches a GPU mode, the dashboard updates within 5 seconds.
+
+**Important notes:**
+- **Polling interval:** The script checks GPU temperatures every **10 seconds**
+- **Mode change latency:** A mode switch may take up to 10 seconds after temperature crosses the threshold
+- **Dashboard update:** The nvfd daemon reads config every 5 seconds
+- **Total latency:** 5-15 seconds from temperature crossing threshold to dashboard showing new mode
+
 #### Systemd Service
 
 When installed with `--with-utils`, the service unit is installed but **not enabled by default**. To enable:
