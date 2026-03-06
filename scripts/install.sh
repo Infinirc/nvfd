@@ -6,6 +6,31 @@ if [ "$EUID" -ne 0 ]; then
     exit 1
 fi
 
+# Parse arguments
+WITH_UTILS=false
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --with-utils)
+            WITH_UTILS=true
+            shift
+            ;;
+        --help)
+            echo "Usage: sudo $(basename "$0") [OPTIONS]"
+            echo
+            echo "Options:"
+            echo "  --with-utils    Install utility scripts (nvfd-fan-control.sh and service)"
+            echo "  --help          Show this help message"
+            echo
+            exit 0
+            ;;
+        *)
+            echo "Unknown option: $1"
+            echo "Run with --help for usage information."
+            exit 1
+            ;;
+    esac
+done
+
 echo "  _   ___     _______ ____  "
 echo " | \ | \ \   / /  ___|  _ \ "
 echo " |  \| |\ \ / /| |_  | | | |"
@@ -94,6 +119,12 @@ systemctl daemon-reload
 systemctl enable nvfd.service
 systemctl start nvfd.service
 
+# Install optional utilities
+if [ "$WITH_UTILS" = true ]; then
+    echo "Installing utility scripts..."
+    make install-utils
+fi
+
 cat << EOF
 
 ======================================================================
@@ -103,18 +134,24 @@ cat << EOF
 Service Status: Started
 
 Usage:
-  nvfd                       Interactive TUI dashboard (on TTY)
-  nvfd auto                  Return fan control to NVIDIA driver
-  nvfd curve                 Enable custom fan curve for all GPUs
-  nvfd curve <temp> <speed>  Edit fan curve point
-  nvfd curve show            Show current fan curve
-  nvfd curve edit            Interactive curve editor (ncurses)
-  nvfd curve reset           Reset fan curve to default
-  nvfd <speed>               Set fixed fan speed for all GPUs (30-100)
-  nvfd <gpu_index> <speed>   Set fixed fan speed for specific GPU
-  nvfd list                  List all GPUs and their indices
-  nvfd status                Show current status
-  nvfd -h                    Show help
+  nvfd                           Interactive TUI dashboard (on TTY)
+  nvfd auto                      Return fan control to NVIDIA driver
+  nvfd curve                     Enable custom fan curve for all GPUs
+  nvfd curve <temp> <speed>      Edit fan curve point
+  nvfd curve show                Show current fan curve
+  nvfd curve edit                Interactive curve editor (ncurses)
+  nvfd curve reset               Reset fan curve to default
+  nvfd <speed>                   Set fixed fan speed for all GPUs (30-100)
+  nvfd <gpu_index> <speed>       Set fixed fan speed for specific GPU
+  nvfd <gpu_index> auto          Set specific GPU to auto mode
+  nvfd <gpu_index> curve         Set specific GPU to curve mode
+  nvfd <gpu_index> manual <sp>   Set specific GPU to fixed speed
+  nvfd list                      List all GPUs and their indices
+  nvfd status                    Show current status
+  nvfd -h                        Show help
+
+Advanced:
+  nvfd-fan-control.sh        Temperature-aware automatic fan mode switching
 
 Works on X11, Wayland, and headless systems.
 No nvidia-settings required.

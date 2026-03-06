@@ -15,6 +15,7 @@ NVFD is an open-source NVIDIA GPU fan control daemon for Linux. It uses the NVML
 - Fixed fan speed mode
 - True auto mode (returns control to NVIDIA driver)
 - Multi-GPU support with per-GPU or all-GPU control, adaptive full/tabbed display
+- Per-GPU mode switching via CLI (`nvfd 0 auto`, `nvfd 1 curve`, etc.)
 - Real-time temperature, utilization, memory, and power monitoring
 - Systemd service with automatic fan reset on shutdown
 - Config hot-reload via SIGHUP
@@ -75,12 +76,24 @@ The install script will:
 - Set up the systemd service
 - Migrate any existing config from v1.x
 
+**Optional:** Install with utility scripts:
+```bash
+sudo scripts/install.sh --with-utils
+```
+
+See [Advanced Usage](#advanced-usage) for details on utility scripts.
+
 ### Manual build
 
 ```bash
 make
 sudo make install
 sudo systemctl enable --now nvfd.service
+```
+
+**Optional: Install utilities**
+```bash
+sudo make install-utils
 ```
 
 ## Uninstallation
@@ -101,18 +114,21 @@ Config files in `/etc/nvfd/` are preserved. Remove manually if desired.
 ## Usage
 
 ```
-nvfd                       Interactive TUI dashboard (on TTY)
-nvfd auto                  Return fan control to NVIDIA driver
-nvfd curve                 Enable custom fan curve for all GPUs
-nvfd curve <temp> <speed>  Edit fan curve point (e.g., nvfd curve 60 70)
-nvfd curve show            Show current fan curve
-nvfd curve edit            Interactive curve editor (ncurses)
-nvfd curve reset           Reset fan curve to default
-nvfd <speed>               Set fixed fan speed for all GPUs (30-100)
-nvfd <gpu_index> <speed>   Set fixed fan speed for specific GPU
-nvfd list                  List all GPUs and their indices
-nvfd status                Show current status
-nvfd -h                    Show help
+nvfd                           Interactive TUI dashboard (on TTY)
+nvfd auto                      Return fan control to NVIDIA driver
+nvfd curve                     Enable custom fan curve for all GPUs
+nvfd curve <temp> <speed>      Edit fan curve point (e.g., nvfd curve 60 70)
+nvfd curve show                Show current fan curve
+nvfd curve edit                Interactive curve editor (ncurses)
+nvfd curve reset               Reset fan curve to default
+nvfd <speed>                   Set fixed fan speed for all GPUs (30-100)
+nvfd <gpu_index> <speed>       Set fixed fan speed for specific GPU
+nvfd <gpu_index> auto          Set specific GPU to auto mode
+nvfd <gpu_index> curve         Set specific GPU to curve mode
+nvfd <gpu_index> manual <sp>   Set specific GPU to fixed speed
+nvfd list                      List all GPUs and their indices
+nvfd status                    Show current status
+nvfd -h                        Show help
 ```
 
 When run with no arguments on a TTY, `nvfd` launches the interactive TUI dashboard.
@@ -169,6 +185,11 @@ nvfd 0 60
 # Return all fans to driver control
 nvfd auto
 
+# Per-GPU mode control
+nvfd 0 auto          # Set GPU 0 to auto mode
+nvfd 1 curve         # Set GPU 1 to curve mode
+nvfd 0 manual 70     # Set GPU 0 to manual mode at 70%
+
 # Use custom fan curve
 nvfd curve
 nvfd curve show
@@ -214,6 +235,72 @@ sudo systemctl status nvfd     # Check status
 ```
 
 The daemon resets all fans to driver-controlled auto mode on shutdown.
+
+## Advanced Usage
+
+### Temperature-Aware Fan Control
+
+The `nvfd-fan-control.sh` utility provides automatic per-GPU fan mode switching based on temperature thresholds with hysteresis:
+
+```bash
+# Run with default thresholds (up: 45°C, down: 35°C)
+sudo nvfd-fan-control.sh
+
+# Custom thresholds with hysteresis
+sudo nvfd-fan-control.sh --threshold-up 50 --threshold-down 40
+
+# Verbose logging
+sudo nvfd-fan-control.sh -v
+```
+
+**Hysteresis explained:**
+- `--threshold-up 45`: Switch to **curve mode** when temperature **rises above 45°C**
+- `--threshold-down 35`: Switch to **auto mode** when temperature **falls below 35°C**
+- Between 35-45°C: **Keep current mode** (prevents thrashing)
+
+The script monitors GPU temperatures and automatically switches each GPU between:
+- **Auto mode** (quiet) when temperature falls below threshold-down
+- **Curve mode** (cooled) when temperature rises above threshold-up
+
+### Monitoring Mode Switches
+
+You can monitor mode switches in real-time using the **nvfd dashboard**:
+
+```bash
+nvfd
+```
+
+The dashboard shows the current mode (Auto/Manual/Curve) for each GPU. When `nvfd-fan-control.sh` switches a GPU mode, the dashboard updates within 5 seconds.
+
+**Important notes:**
+- **Polling interval:** The script checks GPU temperatures every **10 seconds**
+- **Mode change latency:** A mode switch may take up to 10 seconds after temperature crosses the threshold
+- **Dashboard update:** The nvfd daemon reads config every 5 seconds
+- **Total latency:** 5-15 seconds from temperature crossing threshold to dashboard showing new mode
+
+#### Systemd Service
+
+When installed with `--with-utils`, the service unit is installed but **not enabled by default**. To enable:
+
+```bash
+sudo systemctl enable --now nvfd-fan-control.service
+```
+
+The service depends on `nvfd.service` and automatically detects config changes within 5 seconds.
+
+**Customizing thresholds:** Edit `/etc/systemd/system/nvfd-fan-control.service` and modify the `ExecStart` line:
+```ini
+ExecStart=/usr/local/bin/nvfd-fan-control.sh --threshold-up 50 --threshold-down 40
+```
+Then reload and restart: `sudo systemctl daemon-reload && sudo systemctl restart nvfd-fan-control.service`
+
+### Dependencies
+
+The utility script requires:
+- `nvidia-smi` (included with NVIDIA drivers)
+- `nvfd` binary (installed via this package)
+
+No CUDA toolkit required for runtime.
 
 ## Migration from v1.x
 

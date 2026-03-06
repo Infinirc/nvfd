@@ -214,7 +214,38 @@ int main(int argc, char *argv[]) {
             }
         } else if (argc == 3) {
             gpu_index = atoi(argv[1]);
-            speed = atoi(argv[2]);
+
+            /* Per-GPU mode keywords */
+            if (gpu_index >= 0 && gpu_index < (int)device_count) {
+                if (strcmp(argv[2], "auto") == 0) {
+                    char gpu_key[20];
+                    snprintf(gpu_key, sizeof(gpu_key), "gpu%d", gpu_index);
+                    config_write_gpu(gpu_key, "auto", 0);
+                    fan_reset_to_auto((unsigned int)gpu_index);
+                    printf("GPU %d set to auto mode (driver-controlled).\n", gpu_index);
+                } else if (strcmp(argv[2], "curve") == 0) {
+                    char gpu_key[20];
+                    snprintf(gpu_key, sizeof(gpu_key), "gpu%d", gpu_index);
+                    config_write_gpu(gpu_key, "curve", 0);
+                    curve_apply_to_gpu((unsigned int)gpu_index);
+                    printf("GPU %d set to curve mode.\n", gpu_index);
+                } else {
+                    /* Treat as speed */
+                    speed = atoi(argv[2]);
+                }
+            }
+        } else if (argc == 4) {
+            /* Per-GPU manual mode: nvfd <gpu_index> manual <speed> */
+            int gpu_idx = atoi(argv[1]);
+            if (strcmp(argv[2], "manual") == 0 && gpu_idx >= 0 && gpu_idx < (int)device_count) {
+                speed = atoi(argv[3]);
+                gpu_index = gpu_idx;
+            } else {
+                printf("Invalid command: %s\n", argv[2]);
+                display_help();
+                gpu_shutdown();
+                return 1;
+            }
         }
 
         if (speed >= 30 && speed <= 100) {
@@ -236,7 +267,7 @@ int main(int argc, char *argv[]) {
             } else {
                 printf("Invalid GPU index. Use 'nvfd list' to see available GPUs.\n");
             }
-        } else {
+        } else if (speed != -1) {
             printf("Invalid speed. Use a value between 30 and 100.\n");
             display_help();
         }
