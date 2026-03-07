@@ -21,7 +21,7 @@ SRCS     = $(wildcard $(SRCDIR)/*.c)
 OBJS     = $(patsubst $(SRCDIR)/%.c,$(BUILDDIR)/%.o,$(SRCS))
 TARGET   = $(BUILDDIR)/nvfd
 
-.PHONY: all clean install uninstall
+.PHONY: all clean check install uninstall
 
 all: $(TARGET)
 
@@ -33,6 +33,9 @@ $(BUILDDIR)/%.o: $(SRCDIR)/%.c | $(BUILDDIR)
 
 $(BUILDDIR):
 	mkdir -p $(BUILDDIR)
+
+check: $(OBJS)
+	@echo "All source files compiled successfully."
 
 clean:
 	rm -rf $(BUILDDIR)
