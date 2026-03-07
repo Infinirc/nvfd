@@ -1,0 +1,53 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract version from tag
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Verify version matches source
+        run: |
+          src_version=$(grep '#define NVFD_VERSION' include/nvfd.h | cut -d'"' -f2)
+          if [ "$src_version" != "${{ steps.version.outputs.version }}" ]; then
+            echo "ERROR: Tag ${{ github.ref_name }} does not match NVFD_VERSION \"$src_version\" in include/nvfd.h"
+            exit 1
+          fi
+
+      - name: Generate release notes
+        id: notes
+        run: |
+          prev_tag=$(git tag --sort=-v:refname | sed -n '2p')
+          if [ -n "$prev_tag" ]; then
+            echo "## Changes since $prev_tag" > notes.md
+            echo "" >> notes.md
+            git log "$prev_tag"..HEAD --pretty=format:"- %s" --no-merges >> notes.md
+          else
+            echo "## Initial release" > notes.md
+          fi
+          echo "" >> notes.md
+          echo "## Installation" >> notes.md
+          echo '```bash' >> notes.md
+          echo "git clone https://github.com/${{ github.repository }}.git" >> notes.md
+          echo "cd nvfd" >> notes.md
+          echo "sudo scripts/install.sh" >> notes.md
+          echo '```' >> notes.md
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: NVFD v${{ steps.version.outputs.version }}
+          body_path: notes.md
+          generate_release_notes: false
