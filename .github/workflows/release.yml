@@ -1,0 +1,32 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate version
+        id: version
+        run: |
+          src_version=$(grep '#define NVFD_VERSION' include/nvfd.h | cut -d'"' -f2)
+          timestamp=$(date -u +%Y%m%d-%H%M%S)
+          echo "tag=v${src_version}-${timestamp}" >> "$GITHUB_OUTPUT"
+          echo "name=Release v${src_version}-${timestamp}" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: ${{ steps.version.outputs.name }}
+          body: "Automated release for commit ${{ github.sha }}"
+          make_latest: "true"

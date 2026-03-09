@@ -44,6 +44,7 @@ echo
 
 # Detect OS
 if [ -f /etc/os-release ]; then
+    # shellcheck disable=SC1091
     . /etc/os-release
     OS=$NAME
 elif type lsb_release >/dev/null 2>&1; then
