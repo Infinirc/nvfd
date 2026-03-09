@@ -9,33 +9,39 @@
 
 void display_help(void) {
     printf("NVIDIA Fan Daemon (NVFD) v%s\n\n", NVFD_VERSION);
-    printf("+-----------------------------+-----------------------------------------+\n");
-    printf("| Command                     | Description                             |\n");
-    printf("+-----------------------------+-----------------------------------------+\n");
-    printf("| nvfd                        | Interactive TUI dashboard (on TTY)      |\n");
-    printf("+-----------------------------+-----------------------------------------+\n");
-    printf("| nvfd auto                   | Return fan control to NVIDIA driver     |\n");
-    printf("+-----------------------------+-----------------------------------------+\n");
-    printf("| nvfd curve                  | Enable custom fan curve for all GPUs    |\n");
-    printf("+-----------------------------+-----------------------------------------+\n");
-    printf("| nvfd curve <temp> <speed>   | Edit fan curve point                    |\n");
-    printf("+-----------------------------+-----------------------------------------+\n");
-    printf("| nvfd curve show             | Show current fan curve                  |\n");
-    printf("+-----------------------------+-----------------------------------------+\n");
-    printf("| nvfd curve edit             | Interactive curve editor (ncurses)      |\n");
-    printf("+-----------------------------+-----------------------------------------+\n");
-    printf("| nvfd curve reset            | Reset fan curve to default              |\n");
-    printf("+-----------------------------+-----------------------------------------+\n");
-    printf("| nvfd <speed>                | Set fixed fan speed for all GPUs (30-100)|\n");
-    printf("+-----------------------------+-----------------------------------------+\n");
-    printf("| nvfd <gpu_index> <speed>    | Set fixed fan speed for specific GPU    |\n");
-    printf("+-----------------------------+-----------------------------------------+\n");
-    printf("| nvfd list                   | List all GPUs and their indices         |\n");
-    printf("+-----------------------------+-----------------------------------------+\n");
-    printf("| nvfd status                 | Show current status                     |\n");
-    printf("+-----------------------------+-----------------------------------------+\n");
-    printf("| nvfd -h                     | Show this help message                  |\n");
-    printf("+-----------------------------+-----------------------------------------+\n");
+    printf("+----------------------------------+-------------------------------------------+\n");
+    printf("| Command                          | Description                               |\n");
+    printf("+----------------------------------+-------------------------------------------+\n");
+    printf("| nvfd                             | Interactive TUI dashboard (on TTY)        |\n");
+    printf("+----------------------------------+-------------------------------------------+\n");
+    printf("| nvfd auto                        | Return fan control to NVIDIA driver       |\n");
+    printf("+----------------------------------+-------------------------------------------+\n");
+    printf("| nvfd curve                       | Enable custom fan curve for all GPUs      |\n");
+    printf("+----------------------------------+-------------------------------------------+\n");
+    printf("| nvfd curve <temp> <speed>        | Edit fan curve point                      |\n");
+    printf("+----------------------------------+-------------------------------------------+\n");
+    printf("| nvfd curve show                  | Show current fan curve                    |\n");
+    printf("+----------------------------------+-------------------------------------------+\n");
+    printf("| nvfd curve edit                  | Interactive curve editor (ncurses)        |\n");
+    printf("+----------------------------------+-------------------------------------------+\n");
+    printf("| nvfd curve reset                 | Reset fan curve to default                |\n");
+    printf("+----------------------------------+-------------------------------------------+\n");
+    printf("| nvfd <speed>                     | Set fixed fan speed for all GPUs (30-100) |\n");
+    printf("+----------------------------------+-------------------------------------------+\n");
+    printf("| nvfd <gpu_index> <speed>         | Set fixed fan speed for specific GPU      |\n");
+    printf("+----------------------------------+-------------------------------------------+\n");
+    printf("| nvfd <gpu_index> auto            | Set specific GPU to auto mode             |\n");
+    printf("+----------------------------------+-------------------------------------------+\n");
+    printf("| nvfd <gpu_index> curve           | Set specific GPU to curve mode            |\n");
+    printf("+----------------------------------+-------------------------------------------+\n");
+    printf("| nvfd <gpu_index> manual <speed>  | Set specific GPU to fixed speed           |\n");
+    printf("+----------------------------------+-------------------------------------------+\n");
+    printf("| nvfd list                        | List all GPUs and their indices           |\n");
+    printf("+----------------------------------+-------------------------------------------+\n");
+    printf("| nvfd status                      | Show current status                       |\n");
+    printf("+----------------------------------+-------------------------------------------+\n");
+    printf("| nvfd -h                          | Show this help message                    |\n");
+    printf("+----------------------------------+-------------------------------------------+\n");
 }
 
 void display_status(void) {
