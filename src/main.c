@@ -242,14 +242,19 @@ int main(int argc, char *argv[]) {
         } else if (argc == 4) {
             /* Per-GPU manual mode: nvfd <gpu_index> manual <speed> */
             int gpu_idx = atoi(argv[1]);
-            if (strcmp(argv[2], "manual") == 0 && gpu_idx >= 0 && gpu_idx < (int)device_count) {
-                speed = atoi(argv[3]);
-                gpu_index = gpu_idx;
-            } else {
+            if (strcmp(argv[2], "manual") != 0) {
                 printf("Invalid command: %s\n", argv[2]);
                 display_help();
                 gpu_shutdown();
                 return 1;
+            } else if (gpu_idx < 0 || gpu_idx >= (int)device_count) {
+                printf("Invalid GPU index. Use 'nvfd list' to see available GPUs.\n");
+                display_help();
+                gpu_shutdown();
+                return 1;
+            } else {
+                speed = atoi(argv[3]);
+                gpu_index = gpu_idx;
             }
         }
 
