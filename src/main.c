@@ -235,6 +235,9 @@ int main(int argc, char *argv[]) {
                 }
             } else {
                 printf("Invalid GPU index. Use 'nvfd list' to see available GPUs.\n");
+                display_help();
+                gpu_shutdown();
+                return 1;
             }
         } else if (argc == 4) {
             /* Per-GPU manual mode: nvfd <gpu_index> manual <speed> */
