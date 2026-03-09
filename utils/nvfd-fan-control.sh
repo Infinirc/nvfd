@@ -61,6 +61,9 @@ done
 # Check nvfd is available
 [[ -z "$NVFD" || ! -x "$NVFD" ]] && { echo "ERROR: nvfd command not found" >&2; exit 1; }
 
+# Check for root privileges 
+[[ "$EUID" -ne 0 ]] && { echo "ERROR: This script must be run as root (use sudo)" >&2; exit 1; }
+
 # Acquire file lock to prevent multiple instances
 exec 200>"$LOCKFILE"
 if ! flock -n 200; then

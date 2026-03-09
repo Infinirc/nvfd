@@ -94,19 +94,41 @@ sudo systemctl enable --now nvfd.service
 **可選：安裝實用工具**
 ```bash
 sudo make install-utils
+sudo systemctl daemon-reload
+sudo systemctl enable --now nvfd-fan-control.service
 ```
 
 ## 解除安裝
 
+### 使用解除安裝腳本
+
+**不包含實用工具（預設）：**
 ```bash
 sudo scripts/uninstall.sh
 ```
 
-或手動執行：
+**包含實用工具：**
+```bash
+sudo scripts/uninstall.sh --with-utils
+```
+
+### 手動解除安裝
+
+**不包含實用工具：**
 ```bash
 sudo systemctl stop nvfd.service
 sudo systemctl disable nvfd.service
 sudo make uninstall
+```
+
+**包含實用工具：**
+```bash
+sudo systemctl stop nvfd.service
+sudo systemctl disable nvfd.service
+sudo systemctl stop nvfd-fan-control.service
+sudo systemctl disable nvfd-fan-control.service
+sudo make uninstall
+sudo make uninstall-utils
 ```
 
 設定檔 `/etc/nvfd/` 會被保留，如需移除請手動刪除。

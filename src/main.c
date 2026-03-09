@@ -233,6 +233,8 @@ int main(int argc, char *argv[]) {
                     /* Treat as speed */
                     speed = atoi(argv[2]);
                 }
+            } else {
+                printf("Invalid GPU index. Use 'nvfd list' to see available GPUs.\n");
             }
         } else if (argc == 4) {
             /* Per-GPU manual mode: nvfd <gpu_index> manual <speed> */

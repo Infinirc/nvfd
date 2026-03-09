@@ -116,14 +116,20 @@ rm -f /usr/local/bin/infinirc_gpu_fan_control
 rm -f /usr/local/bin/igfc
 
 echo "Enabling and starting service..."
-systemctl daemon-reload
-systemctl enable nvfd.service
-systemctl start nvfd.service
 
 # Install optional utilities
 if [ "$WITH_UTILS" = true ]; then
     echo "Installing utility scripts..."
     make install-utils
+fi
+
+systemctl daemon-reload
+systemctl enable nvfd.service
+systemctl start nvfd.service
+
+if [ "$WITH_UTILS" = true ]; then
+    systemctl enable nvfd-fan-control.service
+    systemctl start nvfd-fan-control.service
 fi
 
 cat << EOF

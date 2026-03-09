@@ -94,19 +94,41 @@ sudo systemctl enable --now nvfd.service
 **Optional: Install utilities**
 ```bash
 sudo make install-utils
+sudo systemctl daemon-reload
+sudo systemctl enable --now nvfd-fan-control.service
 ```
 
 ## Uninstallation
 
+### Using uninstall script
+
+**Without utilities (default):**
 ```bash
 sudo scripts/uninstall.sh
 ```
 
-Or manually:
+**With utilities:**
+```bash
+sudo scripts/uninstall.sh --with-utils
+```
+
+### Manual uninstallation
+
+**Without utilities:**
 ```bash
 sudo systemctl stop nvfd.service
 sudo systemctl disable nvfd.service
 sudo make uninstall
+```
+
+**With utilities:**
+```bash
+sudo systemctl stop nvfd.service
+sudo systemctl disable nvfd.service
+sudo systemctl stop nvfd-fan-control.service
+sudo systemctl disable nvfd-fan-control.service
+sudo make uninstall
+sudo make uninstall-utils
 ```
 
 Config files in `/etc/nvfd/` are preserved. Remove manually if desired.

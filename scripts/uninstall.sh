@@ -1,6 +1,31 @@
 #!/bin/bash
 set -e
 
+# Parse arguments
+WITH_UTILS=false
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --with-utils)
+            WITH_UTILS=true
+            shift
+            ;;
+        --help)
+            echo "Usage: sudo $(basename "$0") [OPTIONS]"
+            echo
+            echo "Options:"
+            echo "  --with-utils    Also remove utility scripts (nvfd-fan-control.sh and service)"
+            echo "  --help          Show this help message"
+            echo
+            exit 0
+            ;;
+        *)
+            echo "Unknown option: $1"
+            echo "Run with --help for usage information."
+            exit 1
+            ;;
+    esac
+done
+
 if [ "$EUID" -ne 0 ]; then
     echo "Please run this script with root privileges (sudo)"
     exit 1
@@ -38,6 +63,25 @@ rm -f /usr/local/src/infinirc_gpu_fan_control.c
 # Remove old alias if present
 if grep -q 'alias igfc=' /etc/bash.bashrc 2>/dev/null; then
     sed -i '/alias igfc=/d' /etc/bash.bashrc
+fi
+
+# Remove optional utilities if requested
+if [ "$WITH_UTILS" = true ]; then
+    echo "Removing utility scripts..."
+    
+    # Stop and disable fan-control service if running
+    if systemctl is-active --quiet nvfd-fan-control.service 2>/dev/null; then
+        systemctl stop nvfd-fan-control.service
+    fi
+    if systemctl is-enabled --quiet nvfd-fan-control.service 2>/dev/null; then
+        systemctl disable nvfd-fan-control.service
+    fi
+    
+    # Remove utility files
+    rm -f /usr/local/bin/nvfd-fan-control.sh
+    rm -f /etc/systemd/system/nvfd-fan-control.service
+    
+    systemctl daemon-reload
 fi
 
 echo ""
