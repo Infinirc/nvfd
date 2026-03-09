@@ -327,7 +327,7 @@ ExecStart=/usr/local/bin/nvfd-fan-control.sh --threshold-up 50 --threshold-down 
 
 實用工具腳本需要：
 - `nvidia-smi`（包含在 NVIDIA 驅動中）
-- `nvfd` 二进制文件（通過此套件安裝）
+- `nvfd` 二進位檔案（通過此套件安裝）
 
 運行時不需要 CUDA toolkit。
 
