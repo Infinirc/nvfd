@@ -21,8 +21,7 @@ SRCS     = $(wildcard $(SRCDIR)/*.c)
 OBJS     = $(patsubst $(SRCDIR)/%.c,$(BUILDDIR)/%.o,$(SRCS))
 TARGET   = $(BUILDDIR)/nvfd
 
-.PHONY: all clean install uninstall install-utils uninstall-utils
-.PHONY: all clean check install uninstall
+.PHONY: all clean check install uninstall install-utils uninstall-utils
 
 all: $(TARGET)
 
