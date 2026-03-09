@@ -131,6 +131,13 @@ sudo make uninstall
 sudo make uninstall-utils
 ```
 
+**Utilities only (keep nvfd):**
+```bash
+sudo systemctl stop nvfd-fan-control.service
+sudo systemctl disable nvfd-fan-control.service
+sudo make uninstall-utils
+```
+
 Config files in `/etc/nvfd/` are preserved. Remove manually if desired.
 
 ## Usage

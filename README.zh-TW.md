@@ -131,6 +131,13 @@ sudo make uninstall
 sudo make uninstall-utils
 ```
 
+**僅實用工具（保留 nvfd）：**
+```bash
+sudo systemctl stop nvfd-fan-control.service
+sudo systemctl disable nvfd-fan-control.service
+sudo make uninstall-utils
+```
+
 設定檔 `/etc/nvfd/` 會被保留，如需移除請手動刪除。
 
 ## 使用方式
