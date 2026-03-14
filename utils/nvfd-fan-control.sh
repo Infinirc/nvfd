@@ -64,6 +64,16 @@ done
 # Check for root privileges 
 [[ "$EUID" -ne 0 ]] && { echo "ERROR: This script must be run as root (use sudo)" >&2; exit 1; }
 
+# Wait for nvfd service to be active (up to 30 seconds)
+# Systemd handles restart rate limiting via StartLimitBurst/StartLimitIntervalSec
+echo "[INFO] Waiting for nvfd service to be ready..."
+for i in {1..30}; do
+  systemctl is-active --quiet nvfd.service && break
+  [[ $i -eq 30 ]] && exit 1
+  sleep 1
+done
+echo "[INFO] nvfd service is ready"
+
 # Acquire file lock to prevent multiple instances
 exec 200>"$LOCKFILE"
 if ! flock -n 200; then

@@ -1,13 +1,13 @@
 [Unit]
 Description=NVIDIA Fan Control - Temperature-aware per-GPU mode switching
-After=nvfd.service
-Wants=nvfd.service
+StartLimitIntervalSec=400
+StartLimitBurst=3
 
 [Service]
 Type=simple
 ExecStart=/usr/local/bin/nvfd-fan-control.sh --threshold-up 45 --threshold-down 35
-Restart=always
-RestartSec=5
+Restart=on-failure
+RestartSec=90
 User=root
 
 [Install]
