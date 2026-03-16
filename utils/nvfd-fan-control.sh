@@ -69,7 +69,9 @@ done
 echo "[INFO] Waiting for nvfd service to be ready..."
 for i in {1..30}; do
   systemctl is-active --quiet nvfd.service && break
-  [[ $i -eq 30 ]] && exit 1
+  systemctl is-active --quiet nvfd.service && break
+  [[ $i -eq 30 ]] && { echo "[ERROR] nvfd service not ready after 30 seconds. Exiting." >&2; exit 1; }
+  sleep 1
   sleep 1
 done
 echo "[INFO] nvfd service is ready"
