@@ -57,6 +57,8 @@ install-utils:
 uninstall:
 	rm -f $(DESTDIR)$(BINDIR)/nvfd
 	rm -f $(DESTDIR)$(UNITDIR)/nvfd.service
+	rm -f $(DESTDIR)$(BINDIR)/nvfd-fan-control.sh
+	rm -f $(DESTDIR)$(UNITDIR)/nvfd-fan-control.service
 	@echo "Config files preserved in $(CONFDIR). Remove manually if desired."
 
 uninstall-utils:
