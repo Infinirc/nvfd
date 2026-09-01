@@ -16,6 +16,15 @@ int gpu_init(void) {
         return -1;
     }
 
+    /* Per-GPU state lives in fixed-size arrays sized by MAX_GPU_COUNT. */
+    if (device_count > MAX_GPU_COUNT) {
+        fprintf(stderr, "Found %u GPUs but NVFD supports at most %d "
+                        "(MAX_GPU_COUNT in include/nvfd.h)\n",
+                device_count, MAX_GPU_COUNT);
+        nvmlShutdown();
+        return -1;
+    }
+
     return 0;
 }
 
