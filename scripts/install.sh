@@ -54,20 +54,47 @@ else
 fi
 
 echo "Detected OS: $OS"
+
+# NVML comes from the NVIDIA driver, never from a CUDA toolkit package. Find
+# the driver library before touching anything, and link against the directory
+# the dynamic linker actually resolves it from.
+NVML_LIB=$(ldconfig -p | awk '/libnvidia-ml\.so\.1 \(libc6/{print $NF; exit}')
+if [ -z "$NVML_LIB" ]; then
+    echo "ERROR: libnvidia-ml.so.1 not found in the dynamic linker cache." >&2
+    echo "       Install the NVIDIA driver (R520 or newer) before installing NVFD." >&2
+    exit 1
+fi
+NVML_LIBDIR=$(dirname "$NVML_LIB")
+echo "Using NVML from $NVML_LIB"
+
 echo "Installing dependencies..."
 
 case "$OS" in
     "Ubuntu"|"Ubuntu "*|"Debian GNU/Linux"|"Debian")
         apt-get update
-        apt-get install -y build-essential libjansson-dev libncursesw5-dev nvidia-cuda-toolkit
+        apt-get install -y build-essential libjansson-dev libncursesw5-dev
         ;;
     "Rocky Linux"|"CentOS Linux"|"Red Hat Enterprise Linux"|"Fedora"|"Fedora Linux")
         dnf install -y gcc make jansson-devel ncurses-devel
         ;;
     *)
-        echo "Warning: Unsupported OS ($OS). Ensure gcc, make, libjansson-dev, libncurses-dev, and NVML headers are installed."
+        echo "Warning: Unsupported OS ($OS). Ensure gcc, make, libjansson-dev and libncurses-dev are installed."
         ;;
 esac
+
+# Determine script directory (where the repo is)
+SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+
+echo "Building NVFD..."
+cd "$SCRIPT_DIR"
+make clean && make LDFLAGS="-L$NVML_LIBDIR"
+
+# Prove the fresh binary can initialise NVML on this host before anything on
+# the system is changed. This also runs the v1.x config migration. If NVML
+# cannot initialise here the daemon would not work either, and the running
+# service (if any) is left untouched.
+echo "Checking NVML and config migration..."
+"$SCRIPT_DIR/build/nvfd" list
 
 # Stop old service if running
 if systemctl is-active --quiet infinirc-gpu-fan-control.service 2>/dev/null; then
@@ -91,19 +118,8 @@ if systemctl is-active --quiet nvfd.service 2>/dev/null; then
     systemctl stop nvfd.service
 fi
 
-# Determine script directory (where the repo is)
-SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-
-echo "Building NVFD..."
-cd "$SCRIPT_DIR"
-make clean && make
-
 echo "Installing..."
 make install
-
-# Run config migration
-echo "Checking for config migration..."
-/usr/local/bin/nvfd list >/dev/null 2>&1 || true
 
 # Remove old alias if present
 if grep -q 'alias igfc=' /etc/bash.bashrc 2>/dev/null; then

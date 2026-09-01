@@ -57,7 +57,7 @@ Recommendations:
 - Linux operating system
 - `libjansson-dev` — JSON library
 - `libncursesw5-dev` — ncurses wide-character support
-- NVML headers (included with CUDA toolkit or `nvidia-cuda-toolkit` package)
+- NVIDIA driver R520 or newer — NVFD links against the driver's `libnvidia-ml.so.1`; no CUDA toolkit or NVML headers are needed
 
 ## Installation
 
@@ -329,7 +329,7 @@ The utility script requires:
 - `nvidia-smi` (included with NVIDIA drivers)
 - `nvfd` binary (installed via this package)
 
-No CUDA toolkit required for runtime.
+No CUDA toolkit is required, either to build NVFD or at runtime.
 
 ## Migration from v1.x
 

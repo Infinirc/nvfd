@@ -7,12 +7,15 @@ BINDIR   = $(PREFIX)/bin
 CONFDIR  = /etc/nvfd
 UNITDIR  = /etc/systemd/system
 
-# NVIDIA CUDA paths (try standard locations)
-CUDA_PATH ?= $(shell [ -d /usr/local/cuda ] && echo /usr/local/cuda || echo /usr)
-CFLAGS  += -I$(CUDA_PATH)/include -Iinclude
-LDFLAGS += -L$(CUDA_PATH)/lib64
+# NVML declarations are carried in include/nvml_api.h, so no CUDA toolkit is
+# needed to build. Any NVML call that is not declared there is a hard error
+# rather than an implicit declaration.
+CFLAGS  += -Iinclude -Werror=implicit-function-declaration
 
-LIBS     = -lnvidia-ml -ljansson -lncursesw
+# Link the driver's NVML by SONAME: libnvidia-ml.so.1 ships with every
+# driver, whereas the unversioned libnvidia-ml.so symlink only comes with
+# -dev packages or the CUDA toolkit.
+LIBS     = -l:libnvidia-ml.so.1 -ljansson -lncursesw
 
 SRCDIR   = src
 BUILDDIR = build

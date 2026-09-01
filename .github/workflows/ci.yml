@@ -15,10 +15,22 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential libjansson-dev libncursesw5-dev nvidia-cuda-toolkit
+          sudo apt-get install -y build-essential libjansson-dev libncursesw5-dev
 
       - name: Compile check
         run: make check
+
+      # The runner has no NVIDIA driver. Link against a stub libnvidia-ml.so.1
+      # that defines exactly the symbols include/nvml_api.h declares, so the
+      # -l:libnvidia-ml.so.1 link line and the declared symbol set are both
+      # exercised, not just compilation.
+      - name: Link against stub NVML
+        run: |
+          mkdir -p build/stub
+          cc -shared -fPIC -Wall -Wextra -Werror -Wl,-soname,libnvidia-ml.so.1 \
+             -Iinclude -o build/stub/libnvidia-ml.so.1 tests/nvml_stub.c
+          make LDFLAGS=-Lbuild/stub
+          test -x build/nvfd
 
   shellcheck:
     runs-on: ubuntu-latest
