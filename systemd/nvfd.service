@@ -23,10 +23,12 @@ MemoryDenyWriteExecute=yes
 RestrictRealtime=yes
 RestrictSUIDSGID=yes
 LockPersonality=yes
-ProtectClock=yes
 RestrictNamespaces=yes
 RestrictAddressFamilies=AF_UNIX
 ProtectHostname=yes
+# No ProtectClock=: it implies DeviceAllow=char-rtc, and any DeviceAllow= turns
+# on DevicePolicy=closed, which hides /dev/nvidiactl and /dev/nvidia* from the
+# daemon. NVML then fails to initialise with "Unknown Error".
 
 [Install]
 WantedBy=multi-user.target
