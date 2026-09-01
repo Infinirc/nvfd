@@ -74,11 +74,22 @@ static void init_colors(void) {
     }
 }
 
+/* Leave curses, report, and exit: used when the config or curve file the
+ * dashboard depends on is unusable, so there is no sane state to display. */
+__attribute__((noreturn))
+static void tui_die(const char *msg) {
+    endwin();
+    fprintf(stderr, "%s\n", msg);
+    exit(EXIT_FAILURE);
+}
+
 static void dashboard_refresh_data(DashboardState *st) {
     st->gpu_count = device_count;
     getmaxyx(stdscr, st->term_rows, st->term_cols);
 
     json_t *root = config_read();
+    if (!root)
+        tui_die(config_last_error());
 
     for (unsigned int i = 0; i < st->gpu_count; i++) {
         GpuData *g = &st->gpus[i];
@@ -106,6 +117,8 @@ static void dashboard_refresh_data(DashboardState *st) {
         g->power = gpu_get_power(device);
         g->power_limit = gpu_get_power_limit(device);
         g->fan_count = fan_get_count(device);
+        if (g->fan_count < 0)
+            g->fan_count = 0; /* unreadable: show none, same as a GPU handle error */
         if (g->fan_count > MAX_FAN_COUNT)
             g->fan_count = MAX_FAN_COUNT;
 
@@ -519,7 +532,26 @@ static void draw_screen(const DashboardState *st) {
     refresh();
 }
 
+/* Loads the curve file for a TUI path that is about to rely on it. The daemon
+ * dies on a missing or invalid curve, so writing "curve" into the config
+ * without one would just send it into a restart loop. */
+static void load_curve_or_die(FanCurve *curve) {
+    CurveStatus status = curve_load(curve);
+    if (status == CURVE_MISSING) {
+        char msg[256];
+        snprintf(msg, sizeof(msg), "%s does not exist; run 'nvfd curve reset' to create it.",
+                 NVFD_CURVE_FILE);
+        tui_die(msg);
+    }
+    if (status == CURVE_INVALID)
+        tui_die(curve_last_error());
+}
+
 static void apply_mode(unsigned int gpu_index, const char *mode, int speed) {
+    FanCurve curve;
+    if (strcmp(mode, "curve") == 0)
+        load_curve_or_die(&curve);
+
     char gpu_key[20];
     snprintf(gpu_key, sizeof(gpu_key), "gpu%d", gpu_index);
     config_write_gpu(gpu_key, mode, speed);
@@ -528,23 +560,13 @@ static void apply_mode(unsigned int gpu_index, const char *mode, int speed) {
         fan_reset_to_auto(gpu_index);
     } else if (strcmp(mode, "manual") == 0) {
         fan_set_gpu_speed(gpu_index, (unsigned int)speed);
-    }
-    /* curve mode: apply immediately in TUI */
-    if (strcmp(mode, "curve") == 0) {
+    } else if (strcmp(mode, "curve") == 0) {
+        /* apply immediately in TUI */
         nvmlDevice_t device;
         if (gpu_get_handle(gpu_index, &device) == 0) {
             int temp = gpu_get_temperature(device);
-            if (temp >= 0) {
-                FanCurve *curve = curve_read();
-                int fan_speed;
-                if (curve) {
-                    fan_speed = curve_interpolate(temp, curve);
-                    free(curve);
-                } else {
-                    fan_speed = curve_default_interpolate(temp);
-                }
-                fan_set_gpu_speed(gpu_index, (unsigned int)fan_speed);
-            }
+            if (temp >= 0)
+                fan_set_gpu_speed(gpu_index, (unsigned int)curve_interpolate(temp, &curve));
         }
     }
 }
@@ -562,7 +584,8 @@ static void apply_curve_fans(const DashboardState *st) {
         return;
 
     /* Read curve once, apply to all curve-mode GPUs */
-    FanCurve *curve = curve_read();
+    FanCurve curve;
+    load_curve_or_die(&curve);
 
     for (unsigned int i = 0; i < st->gpu_count; i++) {
         if (strcmp(st->gpus[i].mode, "curve") != 0)
@@ -576,15 +599,8 @@ static void apply_curve_fans(const DashboardState *st) {
         if (temp < 0)
             continue;
 
-        int fan_speed;
-        if (curve)
-            fan_speed = curve_interpolate(temp, curve);
-        else
-            fan_speed = curve_default_interpolate(temp);
-        fan_set_gpu_speed(i, (unsigned int)fan_speed);
+        fan_set_gpu_speed(i, (unsigned int)curve_interpolate(temp, &curve));
     }
-
-    free(curve);
 }
 
 /* Returns: 1=save, 0=discard, -1=cancel */
@@ -742,7 +758,8 @@ static void handle_input(DashboardState *st, int ch) {
         if (strcmp(g->mode, "curve") != 0)
             break;
         config_ensure_dir();
-        editor_run();
+        if (editor_run() != 0)
+            tui_die(curve_last_error());
         /* Restore dashboard ncurses settings */
         init_colors();
         timeout(1000);

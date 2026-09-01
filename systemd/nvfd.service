@@ -2,11 +2,19 @@
 Description=NVFD - NVIDIA Fan Daemon
 After=multi-user.target nvidia-persistenced.service
 Wants=nvidia-persistenced.service
+# The daemon exits non-zero on any error and is restarted below. Five failed
+# starts within a minute means a restart will not fix it: stop retrying and
+# leave the unit failed where monitoring can see it.
+StartLimitIntervalSec=60
+StartLimitBurst=5
 
 [Service]
-Type=simple
+Type=notify
 ExecStart=/usr/local/bin/nvfd
-ExecReload=/bin/kill -HUP $MAINPID
+# The daemon pings the watchdog after every 5s poll. A hung NVML call or a
+# stuck loop is killed and restarted instead of leaving the fans pinned at
+# whatever speed was last set.
+WatchdogSec=30
 Restart=on-failure
 RestartSec=5
 

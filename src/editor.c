@@ -500,14 +500,17 @@ static void handle_input(EditorState *st, int ch) {
 }
 
 int editor_run(void) {
-    /* Load current curve */
-    FanCurve *loaded = curve_read();
+    /* Load current curve. An unreadable file is an error, not a reason to
+     * silently start from the default and overwrite it on save. */
+    FanCurve loaded;
+    CurveStatus status = curve_load(&loaded);
+    if (status == CURVE_INVALID)
+        return 1; /* the caller reports curve_last_error() once curses is down */
     EditorState st;
     memset(&st, 0, sizeof(st));
 
-    if (loaded) {
-        st.curve = *loaded;
-        free(loaded);
+    if (status == CURVE_OK) {
+        st.curve = loaded;
     } else {
         /* No curve file — use default */
         FanCurve def = {

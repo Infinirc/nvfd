@@ -4,6 +4,13 @@
 #include <sys/stat.h>
 #include <errno.h>
 #include "config.h"
+#include "fan.h"
+
+static char last_error[512];
+
+const char *config_last_error(void) {
+    return last_error;
+}
 
 int config_ensure_dir(void) {
     struct stat st;
@@ -17,20 +24,41 @@ int config_ensure_dir(void) {
 }
 
 json_t *config_read(void) {
+    struct stat st;
+    if (stat(NVFD_CONFIG_FILE, &st) != 0) {
+        if (errno == ENOENT)
+            return json_object(); /* nothing configured yet */
+        snprintf(last_error, sizeof(last_error), "%s: %s",
+                 NVFD_CONFIG_FILE, strerror(errno));
+        return NULL;
+    }
+
     json_error_t error;
-    json_t *root = json_load_file(NVFD_CONFIG_FILE, 0, &error);
-    if (!root)
-        return json_object(); /* empty config */
+    json_t *root = json_load_file(NVFD_CONFIG_FILE, JSON_REJECT_DUPLICATES, &error);
+    if (!root) {
+        snprintf(last_error, sizeof(last_error), "%s: %s (line %d, column %d)",
+                 NVFD_CONFIG_FILE, error.text, error.line, error.column);
+        return NULL;
+    }
+    if (!json_is_object(root)) {
+        snprintf(last_error, sizeof(last_error),
+                 "%s: top-level value must be a JSON object", NVFD_CONFIG_FILE);
+        json_decref(root);
+        return NULL;
+    }
     return root;
 }
 
 int config_write_gpu(const char *gpu_key, const char *mode, int speed) {
-    config_ensure_dir();
+    if (config_ensure_dir() != 0)
+        return -1;
 
-    json_error_t error;
-    json_t *root = json_load_file(NVFD_CONFIG_FILE, 0, &error);
-    if (!root)
-        root = json_object();
+    /* Never overwrite a config we could not parse. */
+    json_t *root = config_read();
+    if (!root) {
+        fprintf(stderr, "%s\n", last_error);
+        return -1;
+    }
 
     json_t *gpu_config = json_object();
     json_object_set_new(gpu_config, "mode", json_string(mode));
@@ -46,6 +74,7 @@ int config_write_gpu(const char *gpu_key, const char *mode, int speed) {
     int ret = json_dump_file(root, tmp_path, JSON_INDENT(2));
     json_decref(root);
     if (ret != 0) {
+        fprintf(stderr, "Failed to write %s\n", tmp_path);
         remove(tmp_path);
         return -1;
     }
@@ -107,13 +136,22 @@ int config_migrate(void) {
             } else if (strcmp(buf, "curve") == 0) {
                 json_object_set_new(gpu_config, "mode", json_string("curve"));
             } else {
-                int speed = atoi(buf);
-                if (speed >= 0 && speed <= 100) {
-                    json_object_set_new(gpu_config, "mode", json_string("manual"));
-                    json_object_set_new(gpu_config, "speed", json_integer(speed));
-                } else {
-                    json_object_set_new(gpu_config, "mode", json_string("auto"));
+                /* Only write a manual speed the daemon will accept; anything
+                 * else is an error to fix by hand, not something to guess at. */
+                char *end;
+                long speed = strtol(buf, &end, 10);
+                if (end == buf || *end != '\0' ||
+                    speed < FAN_SPEED_MIN || speed > FAN_SPEED_MAX) {
+                    fprintf(stderr, "%s: cannot migrate value \"%s\" (expected auto, "
+                                    "curve, or a speed %d-%d); remove the file or fix it\n",
+                            NVFD_OLD_CONFIG_FILE, buf, FAN_SPEED_MIN, FAN_SPEED_MAX);
+                    json_decref(gpu_config);
+                    json_decref(root);
+                    fclose(fp);
+                    return -1;
                 }
+                json_object_set_new(gpu_config, "mode", json_string("manual"));
+                json_object_set_new(gpu_config, "speed", json_integer(speed));
             }
 
             json_object_set_new(root, "gpu0", gpu_config);

@@ -1,46 +1,149 @@
+#include <ctype.h>
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <jansson.h>
 #include "curve.h"
 #include "fan.h"
 #include "gpu.h"
+
+static char last_error[512];
+
+const char *curve_last_error(void) {
+    return last_error;
+}
 
 static int compare_points(const void *a, const void *b) {
     return ((const FanCurvePoint *)a)->temperature -
            ((const FanCurvePoint *)b)->temperature;
 }
 
-FanCurve *curve_read(void) {
-    json_error_t error;
-    json_t *root = json_load_file(NVFD_CURVE_FILE, 0, &error);
-    if (!root)
-        return NULL;
+/* A curve key must be a whole number of degrees, 0-100, with nothing else:
+ * no sign, no leading whitespace (strtol would accept both). */
+static int parse_temperature(const char *key, int *out) {
+    if (!isdigit((unsigned char)key[0]))
+        return -1;
+    char *end;
+    errno = 0;
+    long v = strtol(key, &end, 10);
+    if (errno != 0 || *end != '\0' || v < 0 || v > 100)
+        return -1;
+    *out = (int)v;
+    return 0;
+}
 
-    FanCurve *curve = malloc(sizeof(FanCurve));
-    if (!curve) {
-        json_decref(root);
-        return NULL;
+CurveStatus curve_load(FanCurve *curve) {
+    struct stat st;
+    if (stat(NVFD_CURVE_FILE, &st) != 0) {
+        if (errno == ENOENT)
+            return CURVE_MISSING;
+        snprintf(last_error, sizeof(last_error), "%s: %s",
+                 NVFD_CURVE_FILE, strerror(errno));
+        return CURVE_INVALID;
     }
+
+    json_error_t error;
+    json_t *root = json_load_file(NVFD_CURVE_FILE, JSON_REJECT_DUPLICATES, &error);
+    if (!root) {
+        snprintf(last_error, sizeof(last_error), "%s: %s (line %d, column %d)",
+                 NVFD_CURVE_FILE, error.text, error.line, error.column);
+        return CURVE_INVALID;
+    }
+    if (!json_is_object(root)) {
+        snprintf(last_error, sizeof(last_error),
+                 "%s: top-level value must be a JSON object", NVFD_CURVE_FILE);
+        json_decref(root);
+        return CURVE_INVALID;
+    }
+
     curve->point_count = 0;
 
     const char *key;
     json_t *value;
     json_object_foreach(root, key, value) {
-        if (curve->point_count >= MAX_CURVE_POINTS)
-            break;
-        curve->points[curve->point_count].temperature = atoi(key);
-        curve->points[curve->point_count].fan_speed = (int)json_integer_value(value);
+        if (curve->point_count >= MAX_CURVE_POINTS) {
+            snprintf(last_error, sizeof(last_error), "%s: more than %d points",
+                     NVFD_CURVE_FILE, MAX_CURVE_POINTS);
+            json_decref(root);
+            return CURVE_INVALID;
+        }
+
+        int temp;
+        if (parse_temperature(key, &temp) != 0) {
+            snprintf(last_error, sizeof(last_error),
+                     "%s: key \"%s\" is not a temperature in 0-100", NVFD_CURVE_FILE, key);
+            json_decref(root);
+            return CURVE_INVALID;
+        }
+        if (!json_is_integer(value)) {
+            snprintf(last_error, sizeof(last_error),
+                     "%s: value for %d°C is not an integer", NVFD_CURVE_FILE, temp);
+            json_decref(root);
+            return CURVE_INVALID;
+        }
+        json_int_t speed = json_integer_value(value);
+        if (speed < 0 || speed > 100) {
+            snprintf(last_error, sizeof(last_error),
+                     "%s: fan speed %lld for %d°C is outside 0-100",
+                     NVFD_CURVE_FILE, (long long)speed, temp);
+            json_decref(root);
+            return CURVE_INVALID;
+        }
+        /* Two keys that parse to the same degree ("30" and "030") would make
+         * the interpolation divide by zero. */
+        for (int i = 0; i < curve->point_count; i++) {
+            if (curve->points[i].temperature == temp) {
+                snprintf(last_error, sizeof(last_error),
+                         "%s: temperature %d°C appears more than once", NVFD_CURVE_FILE, temp);
+                json_decref(root);
+                return CURVE_INVALID;
+            }
+        }
+
+        curve->points[curve->point_count].temperature = temp;
+        curve->points[curve->point_count].fan_speed = (int)speed;
         curve->point_count++;
     }
-
     json_decref(root);
 
-    /* Ensure points are sorted by temperature */
+    if (curve->point_count == 0) {
+        snprintf(last_error, sizeof(last_error), "%s: curve has no points", NVFD_CURVE_FILE);
+        return CURVE_INVALID;
+    }
+
     qsort(curve->points, (size_t)curve->point_count, sizeof(FanCurvePoint),
           compare_points);
+    return CURVE_OK;
+}
 
-    return curve;
+FanCurve *curve_read(void) {
+    FanCurve *curve = malloc(sizeof(FanCurve));
+    if (!curve)
+        return NULL;
+
+    CurveStatus status = curve_load(curve);
+    if (status == CURVE_OK)
+        return curve;
+    if (status == CURVE_INVALID)
+        fprintf(stderr, "%s\n", last_error);
+    free(curve);
+    return NULL;
+}
+
+int curve_require(FanCurve *curve) {
+    CurveStatus status = curve_load(curve);
+    if (status == CURVE_MISSING) {
+        fprintf(stderr, "%s does not exist; run 'nvfd curve reset' to create it.\n",
+                NVFD_CURVE_FILE);
+        return -1;
+    }
+    if (status == CURVE_INVALID) {
+        fprintf(stderr, "%s\n", last_error);
+        return -1;
+    }
+    return 0;
 }
 
 int curve_write(const FanCurve *curve) {
@@ -75,52 +178,52 @@ int curve_write(const FanCurve *curve) {
     return 0;
 }
 
-void curve_edit(int temp, int speed) {
-    FanCurve *curve = curve_read();
-    if (!curve) {
-        curve = malloc(sizeof(FanCurve));
-        if (!curve) return;
-        curve->point_count = 0;
+int curve_edit(int temp, int speed) {
+    FanCurve curve;
+    CurveStatus status = curve_load(&curve);
+    if (status == CURVE_INVALID) {
+        /* Refuse to overwrite a file we could not parse. */
+        fprintf(stderr, "%s\n", last_error);
+        return -1;
     }
+    if (status == CURVE_MISSING)
+        curve.point_count = 0;
 
     /* Find existing point or insertion position */
     int index = -1;
-    for (int i = 0; i < curve->point_count; i++) {
-        if (curve->points[i].temperature == temp) {
-            index = i;
-            break;
-        } else if (curve->points[i].temperature > temp) {
+    for (int i = 0; i < curve.point_count; i++) {
+        if (curve.points[i].temperature >= temp) {
             index = i;
             break;
         }
     }
     if (index == -1)
-        index = curve->point_count;
+        index = curve.point_count;
 
-    if (index < curve->point_count && curve->points[index].temperature == temp) {
+    if (index < curve.point_count && curve.points[index].temperature == temp) {
         /* Update existing point */
-        curve->points[index].fan_speed = speed;
+        curve.points[index].fan_speed = speed;
     } else {
-        if (curve->point_count >= MAX_CURVE_POINTS) {
-            printf("Error: Fan curve points have reached the maximum of %d.\n",
-                   MAX_CURVE_POINTS);
-            free(curve);
-            return;
+        if (curve.point_count >= MAX_CURVE_POINTS) {
+            fprintf(stderr, "Error: Fan curve points have reached the maximum of %d.\n",
+                    MAX_CURVE_POINTS);
+            return -1;
         }
         /* Insert new point */
-        for (int i = curve->point_count; i > index; i--)
-            curve->points[i] = curve->points[i - 1];
-        curve->points[index].temperature = temp;
-        curve->points[index].fan_speed = speed;
-        curve->point_count++;
+        for (int i = curve.point_count; i > index; i--)
+            curve.points[i] = curve.points[i - 1];
+        curve.points[index].temperature = temp;
+        curve.points[index].fan_speed = speed;
+        curve.point_count++;
     }
 
-    curve_write(curve);
+    if (curve_write(&curve) != 0)
+        return -1;
     printf("Updated fan curve: %d°C -> %d%%\n", temp, speed);
-    free(curve);
+    return 0;
 }
 
-void curve_reset(void) {
+int curve_reset(void) {
     FanCurve def = {
         .points = {
             {30, 30}, {40, 40}, {50, 55},
@@ -128,13 +231,15 @@ void curve_reset(void) {
         },
         .point_count = 6
     };
-    curve_write(&def);
+    if (curve_write(&def) != 0)
+        return -1;
     printf("Fan curve has been reset to default values.\n");
+    return 0;
 }
 
 int curve_interpolate(int temp, const FanCurve *curve) {
     if (curve->point_count == 0)
-        return 30;
+        return FAN_SPEED_MIN;
 
     /* Below first point: use first point's speed */
     if (temp <= curve->points[0].temperature)
@@ -161,38 +266,19 @@ int curve_interpolate(int temp, const FanCurve *curve) {
 }
 
 int curve_apply_to_gpu(unsigned int gpu_index) {
+    FanCurve curve;
+    if (curve_require(&curve) != 0)
+        return -1;
+
     nvmlDevice_t device;
     if (gpu_get_handle(gpu_index, &device) != 0)
         return -1;
 
     int temp = gpu_get_temperature(device);
-    if (temp < 0)
+    if (temp < 0) {
+        fprintf(stderr, "GPU %u: failed to read temperature\n", gpu_index);
         return -1;
-
-    FanCurve *curve = curve_read();
-    int fan_speed = curve ?
-                    curve_interpolate(temp, curve) :
-                    curve_default_interpolate(temp);
-
-    if (curve) free(curve);
-
-    return fan_set_gpu_speed(gpu_index, (unsigned int)fan_speed);
-}
-
-int curve_default_interpolate(int temp) {
-    if (temp < 30) return 30;
-    if (temp >= 75) return 100;
-
-    int temps[]  = {30, 40, 50, 60, 70, 75};
-    int speeds[] = {30, 40, 55, 70, 90, 100};
-    int n = 6;
-
-    for (int i = 0; i < n - 1; i++) {
-        if (temp >= temps[i] && temp < temps[i + 1]) {
-            float slope = (float)(speeds[i + 1] - speeds[i]) /
-                          (float)(temps[i + 1] - temps[i]);
-            return speeds[i] + (int)(slope * (float)(temp - temps[i]));
-        }
     }
-    return 100;
+
+    return fan_set_gpu_speed(gpu_index, (unsigned int)curve_interpolate(temp, &curve));
 }
