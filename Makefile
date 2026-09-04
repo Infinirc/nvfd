@@ -48,6 +48,7 @@ check: $(OBJS) test
 test:
 	sh tests/test_makefile_nvml_detection.sh
 	sh tests/test_nvml_api_declarations.sh
+	sh tests/test_find_nvml.sh
 
 clean:
 	rm -rf $(BUILDDIR)

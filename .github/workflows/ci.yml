@@ -38,4 +38,4 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Run ShellCheck
-        run: find scripts -name '*.sh' -exec shellcheck {} +
+        run: find scripts tests -name '*.sh' -exec shellcheck {} +

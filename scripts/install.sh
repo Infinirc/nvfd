@@ -55,16 +55,21 @@ fi
 
 echo "Detected OS: $OS"
 
+SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+# shellcheck disable=SC1091
+. "$SCRIPT_DIR/scripts/find-nvml.sh"
+
 # NVML comes from the NVIDIA driver, never from a CUDA toolkit package. Find
-# the driver library before touching anything, and link against the directory
-# the dynamic linker actually resolves it from.
-NVML_LIB=$(ldconfig -p | awk '/libnvidia-ml\.so\.1 \(libc6,/{print $NF; exit}')
-if [ -z "$NVML_LIB" ]; then
+# the driver library before touching anything, and pass that same directory to
+# Make. NVML_LIBDIR remains an escape hatch for nonstandard driver layouts.
+LDCONFIG=${LDCONFIG:-/sbin/ldconfig}
+NVML_LIBDIR=$(find_nvml_libdir)
+if [ -z "$NVML_LIBDIR" ]; then
     echo "ERROR: libnvidia-ml.so.1 not found in the dynamic linker cache." >&2
-    echo "       Install the NVIDIA driver (R520 or newer) before installing NVFD." >&2
+    echo "       Install the NVIDIA driver (R520 or newer), or set NVML_LIBDIR." >&2
     exit 1
 fi
-echo "Using NVML from $NVML_LIB"
+echo "Using NVML from $NVML_LIBDIR/libnvidia-ml.so.1"
 
 echo "Installing dependencies..."
 
@@ -81,12 +86,9 @@ case "$OS" in
         ;;
 esac
 
-# Determine script directory (where the repo is)
-SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-
 echo "Building NVFD..."
 cd "$SCRIPT_DIR"
-make clean && make
+make clean && make NVML_LIBDIR="$NVML_LIBDIR" LDCONFIG="$LDCONFIG"
 
 # Prove the fresh binary can initialise NVML on this host before anything on
 # the system is changed. This also runs the v1.x config migration. If NVML
