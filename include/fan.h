@@ -2,10 +2,7 @@
 #define NVFD_FAN_H
 
 #include "nvfd.h"
-
-/* Speeds sent to the hardware are clamped to this range. */
-#define FAN_SPEED_MIN 30
-#define FAN_SPEED_MAX 100
+#include "speed.h"
 
 int  fan_get_count(nvmlDevice_t device);
 int  fan_get_speed(nvmlDevice_t device, unsigned int fan);

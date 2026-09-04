@@ -118,20 +118,6 @@ CurveStatus curve_load(FanCurve *curve) {
     return CURVE_OK;
 }
 
-FanCurve *curve_read(void) {
-    FanCurve *curve = malloc(sizeof(FanCurve));
-    if (!curve)
-        return NULL;
-
-    CurveStatus status = curve_load(curve);
-    if (status == CURVE_OK)
-        return curve;
-    if (status == CURVE_INVALID)
-        fprintf(stderr, "%s\n", last_error);
-    free(curve);
-    return NULL;
-}
-
 int curve_require(FanCurve *curve) {
     CurveStatus status = curve_load(curve);
     if (status == CURVE_MISSING) {

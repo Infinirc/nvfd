@@ -17,6 +17,7 @@
 #include "editor.h"
 #include "dashboard.h"
 #include "notify.h"
+#include "speed.h"
 
 #define POLL_INTERVAL_SEC 5
 
@@ -74,10 +75,12 @@ static int manual_speed(unsigned int gpu, json_t *cfg) {
         daemon_dief("GPU %u: manual mode without an integer \"speed\" in %s",
                     gpu, NVFD_CONFIG_FILE);
     json_int_t value = json_integer_value(speed);
-    if (value < FAN_SPEED_MIN || value > FAN_SPEED_MAX)
-        daemon_dief("GPU %u: manual speed %lld is outside %d-%d",
-                    gpu, (long long)value, FAN_SPEED_MIN, FAN_SPEED_MAX);
-    return (int)value;
+    int adjusted;
+    int normalized = fan_speed_clamp((long long)value, &adjusted);
+    if (adjusted)
+        syslog(LOG_WARNING, "GPU %u: clamping manual speed %lld to %d",
+               gpu, (long long)value, normalized);
+    return normalized;
 }
 
 /* Fan speed for a GPU in curve mode, from its current temperature. */

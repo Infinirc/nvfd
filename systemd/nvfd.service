@@ -11,6 +11,7 @@ StartLimitBurst=5
 [Service]
 Type=notify
 ExecStart=/usr/local/bin/nvfd
+ExecReload=/bin/kill -HUP $MAINPID
 # The daemon pings the watchdog after every 5s poll. A hung NVML call or a
 # stuck loop is killed and restarted instead of leaving the fans pinned at
 # whatever speed was last set.

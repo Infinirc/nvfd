@@ -17,10 +17,6 @@ const char *curve_last_error(void);
  * missing or invalid file on stderr and returns -1, else 0. */
 int         curve_require(FanCurve *curve);
 
-/* Convenience wrapper: a malloc'd curve, or NULL when the file is missing or
- * invalid. An invalid file is reported on stderr. */
-FanCurve   *curve_read(void);
-
 int         curve_write(const FanCurve *curve);
 int         curve_edit(int temp, int speed);
 int         curve_reset(void);

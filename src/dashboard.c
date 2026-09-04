@@ -339,15 +339,20 @@ static int draw_gpu_section(const DashboardState *st, int row, unsigned int gpu_
 }
 
 static void draw_curve_info(int start_row, int current_temp) {
-    FanCurve *curve = curve_read();
+    FanCurve curve_data;
+    CurveStatus status = curve_load(&curve_data);
+    FanCurve *curve = &curve_data;
 
     attron(COLOR_PAIR(DC_LABEL) | A_BOLD);
     mvprintw(start_row, 3, "Fan Curve:");
     attroff(COLOR_PAIR(DC_LABEL) | A_BOLD);
 
-    if (!curve) {
+    if (status != CURVE_OK) {
         attron(COLOR_PAIR(DC_MODE_DIM));
-        printw("  (no curve file - using default)");
+        if (status == CURVE_MISSING)
+            printw("  (no curve file)");
+        else
+            printw("  (invalid: %s)", curve_last_error());
         attroff(COLOR_PAIR(DC_MODE_DIM));
         return;
     }
@@ -420,7 +425,6 @@ static void draw_curve_info(int start_row, int current_temp) {
     mvprintw(start_row, 5, "Press [e] to open curve editor");
     attroff(COLOR_PAIR(DC_MODE_DIM));
 
-    free(curve);
 }
 
 static void draw_status_bar(const DashboardState *st) {

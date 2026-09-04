@@ -21,7 +21,7 @@ SRCS     = $(wildcard $(SRCDIR)/*.c)
 OBJS     = $(patsubst $(SRCDIR)/%.c,$(BUILDDIR)/%.o,$(SRCS))
 TARGET   = $(BUILDDIR)/nvfd
 
-.PHONY: all clean check install uninstall install-utils uninstall-utils
+.PHONY: all clean check test install uninstall install-utils uninstall-utils
 
 all: $(TARGET)
 
@@ -34,8 +34,14 @@ $(BUILDDIR)/%.o: $(SRCDIR)/%.c | $(BUILDDIR)
 $(BUILDDIR):
 	mkdir -p $(BUILDDIR)
 
-check: $(OBJS)
+check: $(OBJS) test
 	@echo "All source files compiled successfully."
+
+test: $(BUILDDIR)/test_speed
+	./$(BUILDDIR)/test_speed
+
+$(BUILDDIR)/test_speed: tests/test_speed.c src/speed.c | $(BUILDDIR)
+	$(CC) $(CFLAGS) -o $@ $^
 
 clean:
 	rm -rf $(BUILDDIR)
