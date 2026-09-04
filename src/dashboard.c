@@ -138,10 +138,15 @@ static void dashboard_refresh_data(DashboardState *st) {
                 strncpy(g->mode, "auto", sizeof(g->mode) - 1);
             g->mode[sizeof(g->mode) - 1] = '\0';
 
-            if (strcmp(g->mode, "manual") == 0)
-                g->manual_speed = (int)json_integer_value(json_object_get(cfg, "speed"));
-            else
+            if (strcmp(g->mode, "manual") == 0) {
+                json_t *speed = json_object_get(cfg, "speed");
+                if (!json_is_integer(speed))
+                    tui_die("Manual mode requires an integer speed");
+                g->manual_speed = fan_speed_clamp(
+                    (long long)json_integer_value(speed), NULL);
+            } else {
                 g->manual_speed = 0;
+            }
         } else {
             strncpy(g->mode, "auto", sizeof(g->mode) - 1);
             g->mode[sizeof(g->mode) - 1] = '\0';

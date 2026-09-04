@@ -111,13 +111,15 @@ int config_migrate(void) {
         /* Try parsing as JSON first (the write_config_for_gpu format) */
         json_error_t error;
         json_t *root = json_load_file(NVFD_OLD_CONFIG_FILE, 0, &error);
-        if (root) {
+        if (json_is_object(root)) {
             json_dump_file(root, NVFD_CONFIG_FILE, JSON_INDENT(2));
             json_decref(root);
             printf("Migrated config (JSON): %s -> %s\n",
                    NVFD_OLD_CONFIG_FILE, NVFD_CONFIG_FILE);
             return 0;
         }
+        if (root)
+            json_decref(root);
 
         /* Fall back to plain-text format */
         FILE *fp = fopen(NVFD_OLD_CONFIG_FILE, "r");

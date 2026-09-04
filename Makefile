@@ -37,11 +37,15 @@ $(BUILDDIR):
 check: $(OBJS) test
 	@echo "All source files compiled successfully."
 
-test: $(BUILDDIR)/test_speed
+test: $(BUILDDIR)/test_speed $(BUILDDIR)/test_config_migrate
 	./$(BUILDDIR)/test_speed
+	./$(BUILDDIR)/test_config_migrate
 
 $(BUILDDIR)/test_speed: tests/test_speed.c src/speed.c | $(BUILDDIR)
 	$(CC) $(CFLAGS) -o $@ $^
+
+$(BUILDDIR)/test_config_migrate: tests/test_config_migrate.c src/config.c src/speed.c | $(BUILDDIR)
+	$(CC) $(CFLAGS) -include tests/test_paths.h -o $@ $^ -ljansson
 
 clean:
 	rm -rf $(BUILDDIR)
