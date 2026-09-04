@@ -29,7 +29,7 @@ jobs:
           mkdir -p build/stub
           cc -shared -fPIC -Wall -Wextra -Werror -Wl,-soname,libnvidia-ml.so.1 \
              -Iinclude -o build/stub/libnvidia-ml.so.1 tests/nvml_stub.c
-          make LDFLAGS=-Lbuild/stub
+          make NVML_LIBDIR=build/stub
           test -x build/nvfd
 
   shellcheck:

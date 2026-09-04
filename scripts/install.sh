@@ -58,13 +58,12 @@ echo "Detected OS: $OS"
 # NVML comes from the NVIDIA driver, never from a CUDA toolkit package. Find
 # the driver library before touching anything, and link against the directory
 # the dynamic linker actually resolves it from.
-NVML_LIB=$(ldconfig -p | awk '/libnvidia-ml\.so\.1 \(libc6/{print $NF; exit}')
+NVML_LIB=$(ldconfig -p | awk '/libnvidia-ml\.so\.1 \(libc6,/{print $NF; exit}')
 if [ -z "$NVML_LIB" ]; then
     echo "ERROR: libnvidia-ml.so.1 not found in the dynamic linker cache." >&2
     echo "       Install the NVIDIA driver (R520 or newer) before installing NVFD." >&2
     exit 1
 fi
-NVML_LIBDIR=$(dirname "$NVML_LIB")
 echo "Using NVML from $NVML_LIB"
 
 echo "Installing dependencies..."
@@ -87,7 +86,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 
 echo "Building NVFD..."
 cd "$SCRIPT_DIR"
-make clean && make LDFLAGS="-L$NVML_LIBDIR"
+make clean && make
 
 # Prove the fresh binary can initialise NVML on this host before anything on
 # the system is changed. This also runs the v1.x config migration. If NVML

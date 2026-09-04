@@ -41,10 +41,10 @@ typedef enum nvmlTemperatureSensors_enum {
     NVML_TEMPERATURE_GPU = 0
 } nvmlTemperatureSensors_t;
 
-typedef enum nvmlFanControlPolicy_enum {
-    NVML_FAN_POLICY_TEMPERATURE_CONTINOUS_SW = 0,   /* sic — NVIDIA's spelling */
-    NVML_FAN_POLICY_MANUAL                   = 1
-} nvmlFanControlPolicy_t;
+typedef unsigned int nvmlFanControlPolicy_t;
+/* sic — NVIDIA's spelling */
+#define NVML_FAN_POLICY_TEMPERATURE_CONTINOUS_SW 0
+#define NVML_FAN_POLICY_MANUAL 1
 
 typedef struct nvmlUtilization_st {
     unsigned int gpu;
