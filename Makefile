@@ -7,12 +7,20 @@ BINDIR   = $(PREFIX)/bin
 CONFDIR  = /etc/nvfd
 UNITDIR  = /etc/systemd/system
 
-# NVIDIA CUDA paths (try standard locations)
-CUDA_PATH ?= $(shell [ -d /usr/local/cuda ] && echo /usr/local/cuda || echo /usr)
-CFLAGS  += -I$(CUDA_PATH)/include -Iinclude
-LDFLAGS += -L$(CUDA_PATH)/lib64
+# NVML declarations are carried in include/nvml_api.h, so no CUDA toolkit is
+# needed to build. Any NVML call that is not declared there is a hard error
+# rather than an implicit declaration.
+CFLAGS  += -Iinclude -Werror=implicit-function-declaration
 
-LIBS     = -lnvidia-ml -ljansson -lncursesw
+# Link the driver's NVML by SONAME: libnvidia-ml.so.1 ships with every
+# driver, whereas the unversioned libnvidia-ml.so symlink only comes with
+# -dev packages or the CUDA toolkit. Some distributions keep it outside
+# ld's default search path, so use the directory registered with ldconfig.
+LDCONFIG          ?= /sbin/ldconfig
+NVML_CACHE_PATTERN = libnvidia-ml\.so\.1 \(libc6,
+NVML_LIBDIR       ?= $(shell $(LDCONFIG) -p 2>/dev/null | awk '/$(NVML_CACHE_PATTERN)/{print $$NF; exit}' | xargs -r dirname)
+LDFLAGS     += $(if $(NVML_LIBDIR),-L$(NVML_LIBDIR))
+LIBS         = -l:libnvidia-ml.so.1 -ljansson -lncursesw
 
 SRCDIR   = src
 BUILDDIR = build
@@ -21,7 +29,7 @@ SRCS     = $(wildcard $(SRCDIR)/*.c)
 OBJS     = $(patsubst $(SRCDIR)/%.c,$(BUILDDIR)/%.o,$(SRCS))
 TARGET   = $(BUILDDIR)/nvfd
 
-.PHONY: all clean check install uninstall install-utils uninstall-utils
+.PHONY: all clean check test install uninstall install-utils uninstall-utils
 
 all: $(TARGET)
 
@@ -34,8 +42,13 @@ $(BUILDDIR)/%.o: $(SRCDIR)/%.c | $(BUILDDIR)
 $(BUILDDIR):
 	mkdir -p $(BUILDDIR)
 
-check: $(OBJS)
+check: $(OBJS) test
 	@echo "All source files compiled successfully."
+
+test:
+	sh tests/test_makefile_nvml_detection.sh
+	sh tests/test_nvml_api_declarations.sh
+	sh tests/test_find_nvml.sh
 
 clean:
 	rm -rf $(BUILDDIR)

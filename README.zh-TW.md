@@ -57,7 +57,7 @@ NVFD 是一款開源的 Linux NVIDIA GPU 風扇控制守護程式。透過 NVML 
 - Linux 作業系統
 - `libjansson-dev` — JSON 函式庫
 - `libncursesw5-dev` — ncurses 寬字元支援
-- NVML 標頭檔（包含在 CUDA toolkit 或 `nvidia-cuda-toolkit` 套件中）
+- NVIDIA 驅動程式 R520 或更新版本 — NVFD 直接連結驅動程式附帶的 `libnvidia-ml.so.1`，不需要 CUDA toolkit 或 NVML 標頭檔
 
 ## 安裝
 
@@ -329,7 +329,7 @@ ExecStart=/usr/local/bin/nvfd-fan-control.sh --threshold-up 50 --threshold-down 
 - `nvidia-smi`（包含在 NVIDIA 驅動中）
 - `nvfd` 二進位檔案（通過此套件安裝）
 
-運行時不需要 CUDA toolkit。
+建置與運行皆不需要 CUDA toolkit。
 
 ## 從 v1.x 遷移
 

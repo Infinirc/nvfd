@@ -1,7 +1,7 @@
 #ifndef NVFD_H
 #define NVFD_H
 
-#include <nvml.h>
+#include "nvml_api.h"
 #include <signal.h>
 
 #define NVFD_VERSION "1.1"
