@@ -291,10 +291,12 @@ static void handle_input(EditorState *st, int ch) {
         if (st->dirty) {
             int choice = prompt_save();
             if (choice == 1) {
-                /* Save and quit */
-                curve_write(&st->curve);
-                st->dirty = 0;
-                st->running = 0;
+                /* Save and quit. A refused save (a falling curve) keeps the
+                 * editor open so the message is not lost behind endwin(). */
+                if (curve_write(&st->curve) == 0) {
+                    st->dirty = 0;
+                    st->running = 0;
+                }
             } else if (choice == 0) {
                 /* Discard and quit */
                 st->running = 0;

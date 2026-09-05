@@ -19,6 +19,22 @@ int fan_speed_clamp(long long speed, int *adjusted) {
     return result;
 }
 
+int fan_failsafe_speed(int temp, int limit, int fan_speed, int *tripped) {
+    if (limit < 0 || temp < 0)
+        return fan_speed;
+
+    if (temp >= limit) {
+        *tripped = 1;
+        return FAN_SPEED_MAX;
+    }
+    if (*tripped) {
+        if (temp > limit - FAN_FAILSAFE_RELEASE_C)
+            return FAN_SPEED_MAX;
+        *tripped = 0;
+    }
+    return fan_speed;
+}
+
 LegacyConfig legacy_config_parse(const char *value) {
     LegacyConfig config = {LEGACY_MODE_AUTO, 0, 0};
 

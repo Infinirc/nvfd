@@ -155,6 +155,7 @@ nvfd <gpu_index> <speed>       Set fixed fan speed for specific GPU
 nvfd <gpu_index> auto          Set specific GPU to auto mode
 nvfd <gpu_index> curve         Set specific GPU to curve mode
 nvfd <gpu_index> manual <sp>   Set specific GPU to fixed speed
+nvfd reset-fans                Hand fans back to the driver, keep saved modes
 nvfd list                      List all GPUs and their indices
 nvfd status                    Show current status
 nvfd -h                        Show help
@@ -278,6 +279,39 @@ previous instance that died uncleanly cannot leave those fans pinned either.
 The daemon refuses to start if `WatchdogSec` is set below twice its 5 s poll.
 
 Watch it with `journalctl -u nvfd -f`.
+
+### Thermal failsafe
+
+Neither a fixed speed nor a curve knows how hot the die actually is: a curve
+holds its last point's speed at every temperature above it, and manual mode
+ignores temperature entirely. So before every write the daemon raises — never
+lowers — the computed speed to 100% once the GPU reaches a few degrees below
+the point at which it would start throttling itself, read from the driver with
+`nvmlDeviceGetTemperatureThreshold`. The override releases 5 °C lower so it
+cannot chatter, and both edges are logged. A card whose driver reports no
+usable threshold runs without the failsafe and says so once at startup.
+
+A fan curve must not command less airflow as the temperature rises: less
+cooling raises the temperature, which asks for still less cooling. Saving such
+a curve is refused, by `nvfd curve <temp> <speed>` and by the editor alike. An
+existing one still loads — a daemon that will not start is worse than a badly
+shaped curve, and the failsafe covers it — but it is logged once per start.
+
+### Fans after an unclean exit
+
+`nvmlDeviceSetFanSpeed_v2` puts the card in manual fan policy, and that policy
+outlives the process that set it. The daemon hands the fans back on every exit
+it can see, but not on the kills it cannot catch — `SIGKILL`, the OOM killer, a
+segfault — and not once the start limit gives up. The unit therefore carries
+
+```ini
+ExecStopPost=-/usr/local/bin/nvfd reset-fans
+```
+
+which runs however the daemon exited. `nvfd reset-fans` returns every GPU to
+driver control and deliberately does not touch `/etc/nvfd`, so the saved modes
+survive; `nvfd auto` would rewrite them. `WatchdogSignal=SIGTERM` likewise
+makes a watchdog kill land on the daemon's own shutdown path.
 
 ## Advanced Usage
 

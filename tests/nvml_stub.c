@@ -19,6 +19,7 @@ nvmlReturn_t nvmlDeviceGetCount_v2(unsigned int *deviceCount) { *deviceCount = 0
 nvmlReturn_t nvmlDeviceGetHandleByIndex_v2(unsigned int index, nvmlDevice_t *device) { (void)index; *device = NULL; return NVML_SUCCESS; }
 nvmlReturn_t nvmlDeviceGetName(nvmlDevice_t device, char *name, unsigned int length) { (void)device; if (length) name[0] = '\0'; return NVML_SUCCESS; }
 nvmlReturn_t nvmlDeviceGetTemperature(nvmlDevice_t device, nvmlTemperatureSensors_t sensorType, unsigned int *temp) { (void)device; (void)sensorType; *temp = 0; return NVML_SUCCESS; }
+nvmlReturn_t nvmlDeviceGetTemperatureThreshold(nvmlDevice_t device, nvmlTemperatureThresholds_t thresholdType, unsigned int *temp) { (void)device; (void)thresholdType; *temp = 0; return NVML_SUCCESS; }
 nvmlReturn_t nvmlDeviceGetUtilizationRates(nvmlDevice_t device, nvmlUtilization_t *utilization) { (void)device; utilization->gpu = utilization->memory = 0; return NVML_SUCCESS; }
 nvmlReturn_t nvmlDeviceGetMemoryInfo(nvmlDevice_t device, nvmlMemory_t *memory) { (void)device; memory->total = memory->free = memory->used = 0; return NVML_SUCCESS; }
 nvmlReturn_t nvmlDeviceGetPowerUsage(nvmlDevice_t device, unsigned int *power) { (void)device; *power = 0; return NVML_SUCCESS; }

@@ -17,6 +17,37 @@ static void test_clamp(void) {
     assert(adjusted == 1);
 }
 
+static void test_failsafe(void) {
+    int tripped = 0;
+
+    /* No usable threshold, or no reading: the computed speed stands. */
+    assert(fan_failsafe_speed(95, -1, 40, &tripped) == 40);
+    assert(tripped == 0);
+    assert(fan_failsafe_speed(-1, 87, 40, &tripped) == 40);
+    assert(tripped == 0);
+
+    /* Below the trip point nothing changes. */
+    assert(fan_failsafe_speed(86, 87, 40, &tripped) == 40);
+    assert(tripped == 0);
+
+    /* At and above it the fans go flat out, whatever the mode asked for. */
+    assert(fan_failsafe_speed(87, 87, 40, &tripped) == FAN_SPEED_MAX);
+    assert(tripped == 1);
+    assert(fan_failsafe_speed(99, 87, 30, &tripped) == FAN_SPEED_MAX);
+
+    /* Hysteresis: it holds until FAN_FAILSAFE_RELEASE_C below the trip point. */
+    assert(fan_failsafe_speed(86, 87, 40, &tripped) == FAN_SPEED_MAX);
+    assert(tripped == 1);
+    assert(fan_failsafe_speed(83, 87, 40, &tripped) == FAN_SPEED_MAX);
+    assert(tripped == 1);
+    assert(fan_failsafe_speed(82, 87, 40, &tripped) == 40);
+    assert(tripped == 0);
+
+    /* It only ever raises: a curve already above the floor is left alone. */
+    tripped = 0;
+    assert(fan_failsafe_speed(95, 87, FAN_SPEED_MAX, &tripped) == FAN_SPEED_MAX);
+}
+
 static void test_legacy_values(void) {
     LegacyConfig config;
 
@@ -45,6 +76,7 @@ static void test_legacy_values(void) {
 
 int main(void) {
     test_clamp();
+    test_failsafe();
     test_legacy_values();
     puts("speed tests passed");
     return 0;

@@ -41,6 +41,13 @@ typedef enum nvmlTemperatureSensors_enum {
     NVML_TEMPERATURE_GPU = 0
 } nvmlTemperatureSensors_t;
 
+/* Only the thresholds nvfd reads are listed; the numbering is nvml.h's. */
+typedef enum nvmlTemperatureThresholds_enum {
+    NVML_TEMPERATURE_THRESHOLD_SHUTDOWN = 0,
+    NVML_TEMPERATURE_THRESHOLD_SLOWDOWN = 1,
+    NVML_TEMPERATURE_THRESHOLD_GPU_MAX  = 3
+} nvmlTemperatureThresholds_t;
+
 typedef unsigned int nvmlFanControlPolicy_t;
 /* sic — NVIDIA's spelling */
 #define NVML_FAN_POLICY_TEMPERATURE_CONTINOUS_SW 0
@@ -70,6 +77,9 @@ nvmlReturn_t nvmlDeviceGetName(nvmlDevice_t device, char *name, unsigned int len
 nvmlReturn_t nvmlDeviceGetTemperature(nvmlDevice_t device,
                                       nvmlTemperatureSensors_t sensorType,
                                       unsigned int *temp);
+nvmlReturn_t nvmlDeviceGetTemperatureThreshold(nvmlDevice_t device,
+                                               nvmlTemperatureThresholds_t thresholdType,
+                                               unsigned int *temp);
 nvmlReturn_t nvmlDeviceGetUtilizationRates(nvmlDevice_t device,
                                            nvmlUtilization_t *utilization);
 nvmlReturn_t nvmlDeviceGetMemoryInfo(nvmlDevice_t device, nvmlMemory_t *memory);
