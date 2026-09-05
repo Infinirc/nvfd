@@ -17,6 +17,11 @@ const char *curve_last_error(void);
  * missing or invalid file on stderr and returns -1, else 0. */
 int         curve_require(FanCurve *curve);
 
+/* A curve must not command less airflow as the die gets hotter. Returns 1 when
+ * the curve rises (or is flat) throughout, else 0 and sets *bad to the index of
+ * the first point that falls below its predecessor. */
+int         curve_is_monotonic(const FanCurve *curve, int *bad);
+
 int         curve_write(const FanCurve *curve);
 int         curve_edit(int temp, int speed);
 int         curve_reset(void);

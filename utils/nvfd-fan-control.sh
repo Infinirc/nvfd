@@ -99,14 +99,17 @@ echo "[INFO] Detected $NUM_GPUS GPU(s)"
 
 # Graceful shutdown
 cleanup() {
+  trap - EXIT
   echo "[INFO] Shutting down, resetting all GPUs to auto mode..."
   for i in $(seq 0 $((NUM_GPUS - 1))); do
     "$NVFD" "$i" auto >/dev/null 2>&1 || true
   done
-  rm -f "$LOCKFILE"
-  exit 0
 }
-trap cleanup SIGINT SIGTERM
+# EXIT as well as the signals: `set -e` aborts and unexpected errors must not
+# leave the GPUs in curve mode with no supervisor. The lock file is deliberately
+# not removed - the flock is released when this process exits, and unlinking the
+# file lets the next instance lock a fresh inode while this one still holds it.
+trap cleanup EXIT INT TERM
 
 # Main loop
 echo "[INFO] Fan control started (threshold-up: ${THRESHOLD_UP}°C, threshold-down: ${THRESHOLD_DOWN}°C)"
@@ -116,8 +119,14 @@ while true; do
     current_mode="${GPU_MODES[$i]:-unknown}"
     gpu_name="${GPU_NAMES[$i]}"
     
-    temp=$(nvidia-smi --query-gpu=temperature.gpu --format=csv,noheader,nounits --id=$i)
-    
+    # A driver reset or a transient hiccup makes this fail; under `set -e` that
+    # would kill the supervisor and strand every GPU in whatever mode it is in.
+    if ! temp=$(nvidia-smi --query-gpu=temperature.gpu --format=csv,noheader,nounits --id="$i") \
+       || [[ ! "$temp" =~ ^[0-9]+$ ]]; then
+      echo "[WARN] GPU $i: temperature unavailable, skipping this poll" >&2
+      continue
+    fi
+
     [[ "$VERBOSE" == "true" ]] && echo "[INFO] GPU $i ($gpu_name): ${temp}°C | Mode: $current_mode"
     
     if [[ "$temp" -ge "$THRESHOLD_UP" ]]; then

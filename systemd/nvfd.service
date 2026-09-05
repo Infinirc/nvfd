@@ -12,12 +12,20 @@ StartLimitBurst=5
 Type=notify
 ExecStart=/usr/local/bin/nvfd
 ExecReload=/bin/kill -HUP $MAINPID
-# The daemon pings the watchdog after every 5s poll. A hung NVML call or a
-# stuck loop is killed and restarted instead of leaving the fans pinned at
-# whatever speed was last set.
+# The daemon pings the watchdog after every 5s poll, so a hung NVML call or a
+# stuck loop is killed and restarted. WatchdogSignal= makes that kill land on
+# the daemon's own clean-shutdown path; the default SIGABRT would not.
 WatchdogSec=30
+WatchdogSignal=SIGTERM
 Restart=on-failure
 RestartSec=5
+
+# Runs however the daemon exited, including the kills it cannot catch (SIGKILL,
+# the OOM killer, a segfault) and after the start limit gives up. Without it a
+# GPU stays in NVML manual policy at whatever speed was last written, with no
+# temperature feedback, until the next reboot. Fans only: it does not touch the
+# saved per-GPU modes in /etc/nvfd, which `nvfd auto` would rewrite.
+ExecStopPost=-/usr/local/bin/nvfd reset-fans
 
 # Security hardening
 ProtectHome=yes

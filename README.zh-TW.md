@@ -155,6 +155,7 @@ nvfd <GPU 編號> <轉速>          設定指定 GPU 固定轉速
 nvfd <GPU 編號> auto            設定指定 GPU 為自動模式
 nvfd <GPU 編號> curve           設定指定 GPU 為曲線模式
 nvfd <GPU 編號> manual <轉速>    設定指定 GPU 為固定轉速
+nvfd reset-fans                將風扇交還驅動程式，保留已儲存的模式
 nvfd list                      列出所有 GPU
 nvfd status                    顯示目前狀態
 nvfd -h                        顯示說明
@@ -274,6 +275,32 @@ sudo systemctl status nvfd     # 查看狀態
 因此前一個未正常結束的執行個體也不會讓這些風扇停留在固定速度。若 `WatchdogSec` 低於輪詢週期（5 秒）的兩倍，守護程式會拒絕啟動。
 
 可用 `journalctl -u nvfd -f` 觀察。
+
+### 溫度失效保護
+
+固定轉速和曲線都不知道晶片實際有多燙：曲線在最後一個點以上的所有溫度都維持該點的轉速，
+手動模式則完全不看溫度。因此在每次寫入之前，守護程式會在 GPU 達到「開始自我降頻的溫度再低幾度」時，
+把算出來的轉速往上拉到 100%——只會拉高、不會調低。該門檻透過
+`nvmlDeviceGetTemperatureThreshold` 從驅動程式讀取。低於門檻 5°C 才會解除，避免在邊界反覆切換，
+兩個方向都會記錄到 journal。若某張卡的驅動程式回報不出可用門檻，就會在啟動時記錄一次並在沒有失效保護的情況下運作。
+
+風扇曲線不得隨著溫度上升而降低轉速：散熱變差會使溫度更高，而更高的溫度又要求更低的轉速。
+`nvfd curve <temp> <speed>` 和曲線編輯器都會拒絕儲存這種曲線。已經存在的曲線仍可載入
+——無法啟動的守護程式比形狀不佳的曲線更糟，而且有失效保護兜底——但每次啟動會記錄一次警告。
+
+### 非正常結束後的風扇
+
+`nvmlDeviceSetFanSpeed_v2` 會把卡切換成手動風扇策略，而該策略在設定它的行程結束後依然存在。
+守護程式在所有它看得到的結束路徑上都會交還風扇，但攔截不到的終止方式（`SIGKILL`、OOM killer、
+記憶體區段錯誤）以及重啟次數用盡之後就不會。因此服務單元加上了
+
+```ini
+ExecStopPost=-/usr/local/bin/nvfd reset-fans
+```
+
+無論守護程式怎麼結束都會執行。`nvfd reset-fans` 會把所有 GPU 交還驅動程式控制，
+且刻意不動 `/etc/nvfd`，因此已儲存的模式會保留；`nvfd auto` 則會改寫它們。
+`WatchdogSignal=SIGTERM` 同樣讓 watchdog 的終止落在守護程式自己的關閉流程上。
 
 ## 進階用法
 

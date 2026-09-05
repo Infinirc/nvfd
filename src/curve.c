@@ -132,7 +132,34 @@ int curve_require(FanCurve *curve) {
     return 0;
 }
 
+int curve_is_monotonic(const FanCurve *curve, int *bad) {
+    for (int i = 1; i < curve->point_count; i++) {
+        if (curve->points[i].fan_speed < curve->points[i - 1].fan_speed) {
+            if (bad)
+                *bad = i;
+            return 0;
+        }
+    }
+    return 1;
+}
+
 int curve_write(const FanCurve *curve) {
+    /* Refuse to save a falling curve. Less airflow at a higher temperature is
+     * positive feedback: the die heats, the fan slows, and it runs away to the
+     * hardware's own throttle point. Checked on save rather than on load, so an
+     * existing bad file still starts the daemon (which has a failsafe) instead
+     * of leaving the machine with no fan control at all. */
+    int bad = 0;
+    if (!curve_is_monotonic(curve, &bad)) {
+        snprintf(last_error, sizeof(last_error),
+                 "fan speed falls from %d%% at %d C to %d%% at %d C; a curve must not "
+                 "command less airflow as the temperature rises",
+                 curve->points[bad - 1].fan_speed, curve->points[bad - 1].temperature,
+                 curve->points[bad].fan_speed, curve->points[bad].temperature);
+        fprintf(stderr, "%s\n", last_error);
+        return -1;
+    }
+
     json_t *root = json_object();
     if (!root)
         return -1;

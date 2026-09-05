@@ -70,6 +70,12 @@ static void notify_or_die(const char *state) {
 
 /* Fan speed for a GPU in manual mode, taken from its config entry. */
 static int manual_speed(unsigned int gpu, json_t *cfg) {
+    /* Warn once per out-of-range value rather than once per poll: a config
+     * nobody gets round to fixing would otherwise add a journal line every
+     * POLL_INTERVAL_SEC for as long as the daemon runs. */
+    static json_int_t warned_value[MAX_GPU_COUNT];
+    static int warned[MAX_GPU_COUNT];
+
     json_t *speed = json_object_get(cfg, "speed");
     if (!json_is_integer(speed))
         daemon_dief("GPU %u: manual mode without an integer \"speed\" in %s",
@@ -77,21 +83,63 @@ static int manual_speed(unsigned int gpu, json_t *cfg) {
     json_int_t value = json_integer_value(speed);
     int adjusted;
     int normalized = fan_speed_clamp((long long)value, &adjusted);
-    if (adjusted)
+
+    if (!adjusted) {
+        warned[gpu] = 0;
+    } else if (!warned[gpu] || warned_value[gpu] != value) {
         syslog(LOG_WARNING, "GPU %u: clamping manual speed %lld to %d",
                gpu, (long long)value, normalized);
+        warned_value[gpu] = value;
+        warned[gpu] = 1;
+    }
     return normalized;
 }
 
-/* Fan speed for a GPU in curve mode, from its current temperature. */
-static int curve_speed(unsigned int gpu, const FanCurve *curve) {
-    nvmlDevice_t device;
-    if (gpu_get_handle(gpu, &device) != 0)
-        daemon_dief("GPU %u: failed to get device handle", gpu);
-    int temp = gpu_get_temperature(device);
-    if (temp < 0)
-        daemon_dief("GPU %u: failed to read temperature", gpu);
-    return curve_interpolate(temp, curve);
+/*
+ * Last line of defence. Neither manual mode nor a curve whose last point sits
+ * below the card's throttle point knows anything about how hot the die is, so
+ * before every write the computed speed is raised - never lowered - once the
+ * GPU reaches the temperature at which it would start throttling itself.
+ */
+static int apply_failsafe(unsigned int gpu, nvmlDevice_t device, int temp, int fan_speed) {
+    static int limit[MAX_GPU_COUNT];
+    static int probed[MAX_GPU_COUNT];
+    static int tripped[MAX_GPU_COUNT];
+    static int warned_no_temp[MAX_GPU_COUNT];
+
+    if (!probed[gpu]) {
+        probed[gpu] = 1;
+        limit[gpu] = gpu_get_failsafe_temperature(device);
+        if (limit[gpu] < 0)
+            syslog(LOG_WARNING, "GPU %u: driver reports no usable thermal limit; "
+                                "running without a fan failsafe", gpu);
+        else
+            syslog(LOG_INFO, "GPU %u: fan failsafe armed at %d C", gpu, limit[gpu]);
+    }
+    if (limit[gpu] < 0)
+        return fan_speed;
+
+    if (temp < 0) {
+        if (!warned_no_temp[gpu]) {
+            syslog(LOG_WARNING, "GPU %u: temperature unavailable; the fan failsafe "
+                                "cannot act", gpu);
+            warned_no_temp[gpu] = 1;
+        }
+        return fan_speed;
+    }
+    warned_no_temp[gpu] = 0;
+
+    int was_tripped = tripped[gpu];
+    int result = fan_failsafe_speed(temp, limit[gpu], fan_speed, &tripped[gpu]);
+
+    if (tripped[gpu] && !was_tripped)
+        syslog(LOG_WARNING, "GPU %u: %d C reached the %d C failsafe; forcing fans to "
+                            "%d%% (configured speed was %d%%)",
+               gpu, temp, limit[gpu], FAN_SPEED_MAX, fan_speed);
+    else if (!tripped[gpu] && was_tripped)
+        syslog(LOG_INFO, "GPU %u: %d C is back below the %d C failsafe", gpu, temp, limit[gpu]);
+
+    return result;
 }
 
 /* systemd passes the configured WatchdogSec in microseconds. Pinging once per
@@ -167,6 +215,13 @@ static void daemon_loop(void) {
                 continue;
             }
 
+            nvmlDevice_t device;
+            if (gpu_get_handle(i, &device) != 0)
+                daemon_dief("GPU %u: failed to get device handle", i);
+            /* Read once per poll: curve mode needs it, and the failsafe needs it
+             * for every mode, manual included. */
+            int temp = gpu_get_temperature(device);
+
             int fan_speed;
             if (strcmp(mode, "manual") == 0) {
                 fan_speed = manual_speed(i, cfg);
@@ -179,11 +234,33 @@ static void daemon_loop(void) {
                     if (status == CURVE_INVALID)
                         daemon_die(curve_last_error());
                     curve_loaded = 1;
+
+                    /* An already-saved falling curve still loads, so say so. */
+                    static int warned_shape;
+                    int bad = 0;
+                    if (!curve_is_monotonic(&curve, &bad)) {
+                        if (!warned_shape) {
+                            syslog(LOG_WARNING, "%s: fan speed falls from %d%% at %d C to "
+                                                "%d%% at %d C; the failsafe still applies, "
+                                                "but fix the curve", NVFD_CURVE_FILE,
+                                   curve.points[bad - 1].fan_speed,
+                                   curve.points[bad - 1].temperature,
+                                   curve.points[bad].fan_speed,
+                                   curve.points[bad].temperature);
+                            warned_shape = 1;
+                        }
+                    } else {
+                        warned_shape = 0;
+                    }
                 }
-                fan_speed = curve_speed(i, &curve);
+                if (temp < 0)
+                    daemon_dief("GPU %u: failed to read temperature", i);
+                fan_speed = curve_interpolate(temp, &curve);
             } else {
                 daemon_dief("GPU %u: unknown mode \"%s\" in %s", i, mode, NVFD_CONFIG_FILE);
             }
+
+            fan_speed = apply_failsafe(i, device, temp, fan_speed);
 
             if (fan_set_gpu_speed(i, (unsigned int)fan_speed) != 0)
                 daemon_dief("GPU %u: failed to set fan speed to %d%%", i, fan_speed);
@@ -329,6 +406,13 @@ int main(int argc, char *argv[]) {
             display_help();
             rc = -1;
         }
+    } else if (strcmp(argv[1], "reset-fans") == 0) {
+        /* Hand the fans back to the driver without touching /etc/nvfd. The unit
+         * runs this from ExecStopPost=, so a kill the daemon cannot catch still
+         * ends with the driver in charge rather than a fan pinned where it was.
+         * `nvfd auto` is not usable there: it would rewrite the saved mode. */
+        if (fan_reset_all_to_auto() != 0)
+            rc = -1;
     } else if (strcmp(argv[1], "list") == 0) {
         display_list_gpus();
     } else {

@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stddef.h>
 #include <string.h>
 #include "gpu.h"
 
@@ -45,6 +46,31 @@ int gpu_get_temperature(nvmlDevice_t device) {
     unsigned int temp;
     if (nvmlDeviceGetTemperature(device, NVML_TEMPERATURE_GPU, &temp) == NVML_SUCCESS)
         return (int)temp;
+    return -1;
+}
+
+/* Trip a few degrees before the hardware starts throttling itself, so the fans
+ * are already at full speed by the time performance would be affected. */
+#define FAILSAFE_MARGIN_C 3
+
+int gpu_get_failsafe_temperature(nvmlDevice_t device) {
+    /* GPU_MAX is where the card drops below base clock; SLOWDOWN is the harder
+     * hardware limit above it. Prefer the former, fall back to the latter. */
+    static const nvmlTemperatureThresholds_t order[] = {
+        NVML_TEMPERATURE_THRESHOLD_GPU_MAX,
+        NVML_TEMPERATURE_THRESHOLD_SLOWDOWN,
+        NVML_TEMPERATURE_THRESHOLD_SHUTDOWN
+    };
+    for (size_t i = 0; i < sizeof(order) / sizeof(order[0]); i++) {
+        unsigned int limit;
+        if (nvmlDeviceGetTemperatureThreshold(device, order[i], &limit) != NVML_SUCCESS)
+            continue;
+        /* Some drivers report these relative to a limit rather than in degrees;
+         * anything outside a plausible die temperature is not usable. */
+        if (limit < 40 || limit > 120)
+            continue;
+        return (int)limit - FAILSAFE_MARGIN_C;
+    }
     return -1;
 }
 

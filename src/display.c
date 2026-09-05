@@ -36,6 +36,8 @@ void display_help(void) {
     printf("+----------------------------------+-------------------------------------------+\n");
     printf("| nvfd <gpu_index> manual <speed>  | Set specific GPU to fixed speed           |\n");
     printf("+----------------------------------+-------------------------------------------+\n");
+    printf("| nvfd reset-fans                  | Hand fans to the driver, keep saved modes |\n");
+    printf("+----------------------------------+-------------------------------------------+\n");
     printf("| nvfd list                        | List all GPUs and their indices           |\n");
     printf("+----------------------------------+-------------------------------------------+\n");
     printf("| nvfd status                      | Show current status                       |\n");
