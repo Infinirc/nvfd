@@ -18,7 +18,7 @@ NVFD is an open-source NVIDIA GPU fan control daemon for Linux. It uses the NVML
 - Per-GPU mode switching via CLI (`nvfd 0 auto`, `nvfd 1 curve`, etc.)
 - Real-time temperature, utilization, memory, and power monitoring
 - Systemd service with automatic fan reset on shutdown
-- Config hot-reload via SIGHUP
+- Config and curve changes take effect within one 5-second poll — no reload step
 - Auto-elevates to root (no need to type sudo)
 
 ## TUI Dashboard
@@ -259,11 +259,25 @@ Config files are stored in `/etc/nvfd/`:
 sudo systemctl start nvfd      # Start the fan control daemon
 sudo systemctl stop nvfd       # Stop (fans reset to auto)
 sudo systemctl restart nvfd    # Restart
-sudo systemctl reload nvfd     # Reload config (SIGHUP)
 sudo systemctl status nvfd     # Check status
 ```
 
 The daemon resets all fans to driver-controlled auto mode on shutdown.
+
+### Failure handling
+
+The daemon treats every error as fatal: an unreadable config or curve file, an
+unknown mode, a GPU that refuses a fan command. It logs the reason to the
+journal, resets the fans to auto, and exits non-zero so systemd restarts it
+(`Restart=on-failure`, 5 s). Five failures within a minute leave the unit in a
+failed state rather than restarting forever. The unit is `Type=notify` with a
+30 s watchdog, so a daemon that hangs mid-poll is killed and restarted instead
+of leaving the fans pinned at the last speed it set. On start the daemon hands
+every GPU not configured for manual or curve mode back to the driver, so a
+previous instance that died uncleanly cannot leave those fans pinned either.
+The daemon refuses to start if `WatchdogSec` is set below twice its 5 s poll.
+
+Watch it with `journalctl -u nvfd -f`.
 
 ## Advanced Usage
 

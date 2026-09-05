@@ -18,7 +18,7 @@ NVFD 是一款開源的 Linux NVIDIA GPU 風扇控制守護程式。透過 NVML 
 - 透過 CLI 實現每張 GPU 的模式切換 (`nvfd 0 auto`, `nvfd 1 curve` 等)
 - 即時溫度、使用率、記憶體、功耗監控
 - Systemd 服務，關機時自動重設風扇
-- 透過 SIGHUP 熱載入設定
+- 設定與風扇曲線變更會在下一個輪詢週期（5 秒）內自動生效，無需重新載入
 - 自動提權為 root（無需手動輸入 sudo）
 
 ## TUI 儀表板
@@ -259,11 +259,21 @@ nvfd list
 sudo systemctl start nvfd      # 啟動風扇控制守護程式
 sudo systemctl stop nvfd       # 停止（風扇重設為自動）
 sudo systemctl restart nvfd    # 重新啟動
-sudo systemctl reload nvfd     # 重新載入設定（SIGHUP）
 sudo systemctl status nvfd     # 查看狀態
 ```
 
 守護程式關閉時會自動將所有風扇重設為驅動程式控制的自動模式。
+
+### 錯誤處理
+
+守護程式將所有錯誤視為致命錯誤：無法讀取設定檔或曲線檔、未知的模式、GPU 拒絕風扇指令。
+它會將原因記錄到 journal、將風扇重設為自動模式，並以非零狀態結束，讓 systemd 重新啟動它
+（`Restart=on-failure`，5 秒）。一分鐘內失敗五次後，服務會停留在 failed 狀態，而不是無限重啟。
+服務單元為 `Type=notify` 並設有 30 秒 watchdog，因此若守護程式在輪詢中卡住，會被終止並重新啟動，
+而不會讓風扇停留在最後設定的速度。啟動時，守護程式會將所有未設定為手動或曲線模式的 GPU 交還給驅動程式，
+因此前一個未正常結束的執行個體也不會讓這些風扇停留在固定速度。若 `WatchdogSec` 低於輪詢週期（5 秒）的兩倍，守護程式會拒絕啟動。
+
+可用 `journalctl -u nvfd -f` 觀察。
 
 ## 進階用法
 
