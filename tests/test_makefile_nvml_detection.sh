@@ -17,11 +17,11 @@ chmod +x "$tmp_dir/ldconfig"
 # shellcheck disable=SC2016
 ldflags=$(make -C "$repo_dir" --no-print-directory -s \
     LDCONFIG="$tmp_dir/ldconfig" \
-    --eval='print-nvml-ldflags:;@echo $(LDFLAGS)' print-nvml-ldflags)
+    --eval='print-nvml-ldflags:;@echo $(NVML_LDFLAGS)' print-nvml-ldflags)
 [ "$ldflags" = "-L/test/nvidia" ]
 
 # shellcheck disable=SC2016
 override_flags=$(make -C "$repo_dir" --no-print-directory -s \
     LDCONFIG=/does/not/exist NVML_LIBDIR=/vendor/lib \
-    --eval='print-nvml-override:;@echo $(LDFLAGS)' print-nvml-override)
+    --eval='print-nvml-override:;@echo $(NVML_LDFLAGS)' print-nvml-override)
 [ "$override_flags" = "-L/vendor/lib" ]
